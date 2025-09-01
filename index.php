@@ -5,7 +5,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>URL Shortener</title>
-  <link rel="stylesheet" href="tool.css" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <main>
