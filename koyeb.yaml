@@ -1,0 +1,49 @@
+name: url-shortener
+
+# Deployments / Services
+services:
+  - name: app
+    type: web
+    ports:
+      - port: 8080   # Dockerfile exposes 8080
+        protocol: http
+    routes:
+      - type: http
+        path: /
+        preserve_path: true
+        custom_domains:
+          - iiuo.org       # root domain
+          - www.iiuo.org   # www domain (optional)
+
+    env:
+      # ✅ Required App Config
+      - key: BASE_URL
+        value: "https://iiuo.org"
+
+      # ✅ Database Config (Koyeb managed MySQL)
+      - key: DB_HOST
+        value: ${urlshort-db.HOST}
+      - key: DB_PORT
+        value: ${urlshort-db.PORT}
+      - key: DB_NAME
+        value: ${urlshort-db.DATABASE}
+      - key: DB_USER
+        value: ${urlshort-db.USERNAME}
+      - key: DB_PASS
+        value: ${urlshort-db.PASSWORD}
+
+    build:
+      docker:
+        dockerfile: Dockerfile
+        context: .
+
+    resources:
+      cpu: 0.25
+      memory: 256
+
+# Database (Koyeb managed MySQL)
+databases:
+  - name: urlshort-db
+    type: mysql
+    version: "8"
+    size: free
