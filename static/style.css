@@ -6,12 +6,13 @@
     --border: #d1d5db;
     --radius: 6px;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
 }
 
 * {
     box-sizing: border-box;
     margin: 0;
-    padding: 0
+    padding: 0;
 }
 
 body {
@@ -29,36 +30,42 @@ main {
     max-width: 700px;
 }
 
+/* ---------- HEADER ---------- */
 header {
     text-align: center;
-    margin-bottom: 20px
+    margin-bottom: 20px;
 }
 
 header h1 {
-    font-size: 20px;
-    font-weight: 600
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--fg);
 }
 
 header p {
     font-size: 14px;
     color: var(--muted);
-    margin-top: 4px
+    margin-top: 4px;
 }
 
+/* ---------- FORM ---------- */
 form {
     display: grid;
-    gap: 14px
+    gap: 14px;
 }
 
 label {
     display: block;
     font-size: 13px;
     color: var(--muted);
-    margin-bottom: 6px
+    margin-bottom: 6px;
 }
 
+input[type="text"],
+input[type="url"],
+input[type="number"],
 textarea,
-input {
+input[readonly] {
     width: 100%;
     padding: 10px 12px;
     font-size: 14px;
@@ -66,19 +73,28 @@ input {
     border-radius: var(--radius);
     background: #fff;
     color: var(--fg);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input:focus,
+textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+    outline: none;
 }
 
 textarea {
     min-height: 80px;
-    resize: vertical
+    resize: vertical;
 }
 
+/* ---------- CONTROLS ---------- */
 .controls {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     align-items: center;
-    margin-top: 8px
+    margin-top: 8px;
 }
 
 .btn {
@@ -90,45 +106,64 @@ textarea {
     border: 1px solid var(--border);
     background: #fff;
     color: var(--fg);
+    transition: background 0.2s, transform 0.1s;
+}
+
+.btn:hover {
+    background: #f3f4f6;
+}
+
+.btn:active {
+    transform: scale(0.97);
 }
 
 .btn-primary {
     background: var(--accent);
     color: #fff;
-    border: none
+    border: none;
 }
 
+.btn-primary:hover {
+    background: #1d4ed8;
+}
+
+/* ---------- OUTPUT SECTION ---------- */
 #outputSection {
     margin-top: 20px;
-    display: none
+    display: none;
 }
 
 .output-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    margin-top: 8px
+    margin-top: 8px;
 }
 
 .small {
     font-size: 13px;
     color: var(--muted);
-    margin-top: 6px
+    margin-top: 6px;
 }
 
+/* ---------- FOOTER ---------- */
 footer {
-    margin-top: 20px;
+    margin-top: 30px;
     text-align: center;
     font-size: 13px;
-    color: var(--muted)
+    color: var(--muted);
 }
 
 footer a {
     color: var(--accent);
-    text-decoration: none
+    text-decoration: none;
 }
 
-/* 📊 Stats Page Styles */
+footer a:hover {
+    text-decoration: underline;
+}
+
+/* ---------- EXTRA CONTENT (How-To + FAQ) ---------- */
 section.stats {
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -137,9 +172,17 @@ section.stats {
     margin-top: 20px;
 }
 
+section.stats h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--fg);
+}
+
 section.stats p {
     font-size: 14px;
     margin-bottom: 10px;
+    color: var(--fg);
 }
 
 section.stats strong {
@@ -153,6 +196,10 @@ section.stats a {
     word-break: break-all;
 }
 
+section.stats a:hover {
+    text-decoration: underline;
+}
+
 code {
     background: #f3f4f6;
     padding: 2px 6px;
@@ -161,13 +208,18 @@ code {
     font-family: monospace;
 }
 
-@media(max-width:600px) {
+/* ---------- RESPONSIVE ---------- */
+@media (max-width: 600px) {
     header h1 {
-        font-size: 18px
+        font-size: 18px;
     }
 
     .btn {
         flex: 1;
-        text-align: center
+        text-align: center;
+    }
+
+    section.stats {
+        padding: 12px;
     }
 }
