@@ -18,7 +18,7 @@ services:
     env:
       # ✅ Required App Config
       - key: BASE_URL
-        value: "https://iiuo.org"
+        value: "https://autonomous-bathsheba-itisuniqueofficial-22a75447.koyeb.app"
 
       # ✅ Database Config (Koyeb managed MySQL)
       - key: DB_HOST
