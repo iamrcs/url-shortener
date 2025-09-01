@@ -1,24 +1,25 @@
-<?php $cfg = require __DIR__.'/config.php'; ?>
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>URL Shortener</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>URL Shortner</title>
+  <link rel="stylesheet" href="/static/style.css" />
 </head>
+
 <body>
   <main>
     <header>
-      <h1>Professional URL Shortener</h1>
-      <p>Fast · Simple · Secure</p>
+      <h1>URL Shortner</h1>
+      <p>Responsive · Simple · Professional</p>
     </header>
 
-    <!-- URL Shortener Form -->
+    <!-- Shortener Form -->
     <form id="shortForm" autocomplete="off" novalidate>
       <div>
         <label for="longUrl">Enter Long URL</label>
-        <input id="longUrl" type="url" required placeholder="https://example.com/very/long/link" aria-required="true" />
+        <input id="longUrl" type="url" required placeholder="https://example.com/very/long/link">
       </div>
 
       <div>
@@ -33,7 +34,7 @@
       </div>
     </form>
 
-    <!-- Output Section -->
+    <!-- Output -->
     <section id="outputSection">
       <h2 style="font-size:15px;font-weight:600;margin-bottom:8px">Shortened Link</h2>
       <input id="output" readonly aria-label="Shortened URL" />
@@ -45,18 +46,14 @@
     </section>
 
     <footer>
-      <p>Powered by <a href="<?php echo htmlspecialchars($cfg['base_url']); ?>" target="_blank" rel="noopener">
-        <?php echo parse_url($cfg['base_url'], PHP_URL_HOST); ?>
-      </a></p>
+      <p>Powered by <a href="/" target="_blank" rel="noopener">URL Shortner</a></p>
     </footer>
   </main>
 
-  <!-- JavaScript -->
   <script>
-    const base = <?php echo json_encode($cfg['base_url']); ?>;
     const form = document.getElementById('shortForm');
     const input = document.getElementById('longUrl');
-    const slug  = document.getElementById('slug');
+    const slug = document.getElementById('slug');
     const output = document.getElementById('output');
     const section = document.getElementById('outputSection');
     const copyBtn = document.getElementById('copyBtn');
@@ -64,10 +61,8 @@
     const clearBtn = document.getElementById('clearBtn');
     const msg = document.getElementById('msg');
 
-    // Hide output initially
     section.style.display = 'none';
 
-    // Handle form submit
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const url = input.value.trim();
@@ -79,7 +74,7 @@
       }
 
       try {
-        const res = await fetch('api.php', {
+        const res = await fetch('/shorten', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url, slug: slugVal })
@@ -89,7 +84,7 @@
         section.style.display = 'block';
 
         if (j.ok) {
-          const shortUrl = base + '/' + j.code;
+          const shortUrl = window.location.origin + '/' + j.code;
           output.value = shortUrl;
           openBtn.href = shortUrl;
           msg.textContent = j.msg;
@@ -108,7 +103,6 @@
       }
     });
 
-    // Copy button
     copyBtn.addEventListener('click', () => {
       if (output.value) {
         output.select();
@@ -116,10 +110,9 @@
       }
     });
 
-    // Clear form
     clearBtn.addEventListener('click', () => {
       input.value = "";
-      slug.value  = "";
+      slug.value = "";
       output.value = "";
       msg.textContent = "";
       section.style.display = 'none';
