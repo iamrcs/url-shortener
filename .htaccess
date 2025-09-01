@@ -1,23 +1,9 @@
-# Enable Rewrite Engine
 RewriteEngine On
-RewriteBase /
 
-# Security headers (basic)
-<IfModule mod_headers.c>
-    Header always set X-Content-Type-Options "nosniff"
-    Header always set X-Frame-Options "SAMEORIGIN"
-    Header always set X-XSS-Protection "1; mode=block"
-</IfModule>
+# Handle short slugs
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^([A-Za-z0-9\-_]+)/?$ redirect.php?slug=$1 [L]
 
-# Disable directory listing
-Options -Indexes
-
-# Allow direct access to assets
-RewriteCond %{REQUEST_FILENAME} -f
-RewriteRule \.(css|js|png|jpg|jpeg|gif|svg|ico|html|php)$ - [L]
-
-# Stats route: /stats/<code>
-RewriteRule ^stats/([A-Za-z0-9_-]+)$ stats.php?code=$1 [L,QSA]
-
-# Redirect short codes to r.php
-RewriteRule ^([A-Za-z0-9_-]+)$ r.php?c=$1 [L,QSA]
+# Stats endpoint: /stats/slug
+RewriteRule ^stats/([A-Za-z0-9\-_]+)/?$ stats.php?slug=$1 [L]
