@@ -1,19 +1,23 @@
+# Use official PHP Apache image
 FROM php:8.2-apache
 
-# Install PDO MySQL
-RUN docker-php-ext-install pdo pdo_mysql
-
-# Copy app
-COPY . /var/www/html/
-
-# Enable mod_rewrite
+# Enable Apache mod_rewrite
 RUN a2enmod rewrite
 
-# Apache config for .htaccess
-RUN echo '<Directory /var/www/html>\n\
-    AllowOverride All\n\
-    </Directory>' > /etc/apache2/conf-available/rewrite.conf && \
-    a2enconf rewrite
+# Copy app files into container
+COPY . /var/www/html/
 
+# Set working directory
+WORKDIR /var/www/html/
+
+# Install PDO and PostgreSQL driver
+RUN docker-php-ext-install pdo pdo_pgsql
+
+# Expose port 8080 for Koyeb
 EXPOSE 8080
+
+# Tell Apache to listen on 8080 instead of 80
+RUN sed -i 's/80/8080/g' /etc/apache2/sites-available/000-default.conf \
+    && sed -i 's/80/8080/g' /etc/apache2/ports.conf
+
 CMD ["apache2-foreground"]
