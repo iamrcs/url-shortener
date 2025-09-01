@@ -2,5 +2,6 @@ flask
 flask-cors
 flask-sqlalchemy
 flask-limiter
+flask_caching
 gunicorn
 psycopg2-binary
