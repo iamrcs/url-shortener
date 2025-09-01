@@ -2,6 +2,9 @@ flask
 flask-cors
 flask-sqlalchemy
 flask-limiter
-flask_caching
+flask-caching
 gunicorn
 psycopg2-binary
+redis
+rq
+apscheduler
