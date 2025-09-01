@@ -1,0 +1,13 @@
+CREATE DATABASE IF NOT EXISTS shortener;
+USE shortener;
+
+CREATE TABLE links (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    slug VARCHAR(50) UNIQUE NOT NULL,
+    url TEXT NOT NULL,
+    clicks INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE links ADD UNIQUE KEY slug_unique (slug);
+ALTER TABLE links ADD INDEX url_index (url(255));
