@@ -30,7 +30,7 @@ $shortUrl = $cfg['base_url'] . '/' . $row['code'];
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Stats for <?php echo htmlspecialchars($row['code']); ?></title>
-  <link rel="stylesheet" href="tool.css"/>
+  <link rel="stylesheet" href="stats.css"/>
 </head>
 <body>
   <main>
