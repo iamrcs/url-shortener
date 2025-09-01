@@ -2,7 +2,8 @@
 <html lang="en">
 
 <head>
-  <meta charset="utf-8" />
+
+    <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>URL Shortner - Fast, Simple & Secure Link Shortening</title>
 
@@ -23,23 +24,23 @@
   <meta name="twitter:title" content="URL Shortner - Fast, Simple & Secure">
   <meta name="twitter:description" content="Create secure short links with custom slugs and expiry. Perfect for sharing anywhere.">
   <meta name="twitter:image" content="https://yourdomain.com/preview.png">
-
-  <base href="/" />
-  <link rel="stylesheet" href="static/style.css" />
+  
+  <link rel="stylesheet" href="/static/style.css" />
+  
 </head>
 
 <body>
   <main>
     <header>
-      <h1>Professional URL Shortner</h1>
-      <p>Fast · Simple · Secure</p>
+      <h1>URL Shortner</h1>
+      <p>Responsive · Simple · Professional</p>
     </header>
 
-    <!-- URL Shortener Form -->
+    <!-- Shortener Form -->
     <form id="shortForm" autocomplete="off" novalidate>
       <div>
         <label for="longUrl">Enter Long URL</label>
-        <input id="longUrl" type="url" required placeholder="https://example.com/very/long/link" aria-required="true" />
+        <input id="longUrl" type="url" required placeholder="https://example.com/very/long/link">
       </div>
 
       <div>
@@ -48,19 +49,13 @@
         <p class="small">Allowed: A–Z, a–z, 0–9, dash (-), underscore (_), min 3 chars</p>
       </div>
 
-      <div>
-        <label for="expiry_days">Expiry (in days)</label>
-        <input id="expiry_days" type="number" min="1" placeholder="Optional">
-        <p class="small">Leave empty for permanent links</p>
-      </div>
-
       <div class="controls">
         <button type="submit" class="btn btn-primary">Shorten URL</button>
         <button type="button" id="clearBtn" class="btn">Clear</button>
       </div>
     </form>
 
-    <!-- Output Section -->
+    <!-- Output -->
     <section id="outputSection">
       <h2 style="font-size:15px;font-weight:600;margin-bottom:8px">Shortened Link</h2>
       <input id="output" readonly aria-label="Shortened URL" />
@@ -105,13 +100,10 @@
     </footer>
   </main>
 
-  <!-- JavaScript -->
   <script>
-    const base = window.location.origin;
     const form = document.getElementById('shortForm');
     const input = document.getElementById('longUrl');
     const slug = document.getElementById('slug');
-    const expiry = document.getElementById('expiry_days');
     const output = document.getElementById('output');
     const section = document.getElementById('outputSection');
     const copyBtn = document.getElementById('copyBtn');
@@ -125,7 +117,6 @@
       e.preventDefault();
       const url = input.value.trim();
       const slugVal = slug.value.trim();
-      const expiryVal = expiry ? expiry.value.trim() : "";
 
       if (!url) {
         alert("Please enter a valid URL");
@@ -136,14 +127,14 @@
         const res = await fetch('/shorten', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url, slug: slugVal, expiry_days: expiryVal })
+          body: JSON.stringify({ url, slug: slugVal })
         });
         const j = await res.json();
 
         section.style.display = 'block';
 
         if (j.ok) {
-          const shortUrl = base + '/' + j.code;
+          const shortUrl = window.location.origin + '/' + j.code;
           output.value = shortUrl;
           openBtn.href = shortUrl;
           msg.textContent = j.msg;
@@ -172,7 +163,6 @@
     clearBtn.addEventListener('click', () => {
       input.value = "";
       slug.value = "";
-      if (expiry) expiry.value = "";
       output.value = "";
       msg.textContent = "";
       section.style.display = 'none';
