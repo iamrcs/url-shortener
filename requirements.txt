@@ -3,3 +3,4 @@ flask-cors
 flask-sqlalchemy
 flask-limiter
 gunicorn
+psycopg2-binary
