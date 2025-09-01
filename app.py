@@ -30,13 +30,15 @@ app = Flask(__name__)
 app.config.from_object(Config)
 CORS(app)
 
-# Fix Postgres URL if needed
+# Fix Postgres URL for SQLAlchemy if needed
 db_url = app.config["DATABASE_URL"]
 if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
 app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 
 db = SQLAlchemy(app)
+
+# Rate Limiter
 limiter = Limiter(get_remote_address, app=app)
 
 # -----------------------------
@@ -74,51 +76,34 @@ with app.app_context():
 # -----------------------------
 def generate_slug(length=6):
     chars = string.ascii_letters + string.digits
-    while True:
+    for _ in range(10):  # Avoid infinite loop
         slug = "".join(random.choices(chars, k=length))
         if not URLMap.query.filter_by(slug=slug).first():
             return slug
+    raise Exception("Failed to generate unique slug")
 
 def is_valid_url(url: str) -> bool:
     try:
         parsed = urlparse(url)
         if parsed.scheme not in ["http", "https"] or not parsed.netloc:
             return False
-        # Prevent private IPs
+
+        # Convert hostname to IP for private IP check
         try:
             ip = ipaddress.ip_address(parsed.hostname)
             if ip.is_private or ip.is_loopback:
                 return False
         except ValueError:
-            # Not an IP, ignore
+            # Not an IP address, ignore
             pass
-        if parsed.hostname in ["localhost"] or parsed.hostname.startswith(("192.168.", "10.", "172.")):
+
+        # Prevent localhost or private network domains
+        if parsed.hostname in ["localhost"] or parsed.hostname.startswith("192.168.") or parsed.hostname.startswith("10.") or parsed.hostname.startswith("172."):
             return False
+
         return True
     except Exception:
         return False
-
-def create_or_get_short_url(long_url, custom_slug=None, expires_at=None):
-    """Return existing short URL if available or create a new one"""
-    # Check existing non-expired URL
-    existing = URLMap.query.filter_by(long_url=long_url).filter(
-        (URLMap.expires_at == None) | (URLMap.expires_at > datetime.utcnow())
-    ).first()
-    if existing:
-        return existing, False  # False = not newly created
-
-    # Use custom slug if valid
-    slug = custom_slug if custom_slug else generate_slug()
-
-    while True:
-        try:
-            new_entry = URLMap(slug=slug, long_url=long_url, expires_at=expires_at)
-            db.session.add(new_entry)
-            db.session.commit()
-            return new_entry, True  # True = newly created
-        except IntegrityError:
-            db.session.rollback()
-            slug = generate_slug()  # retry if slug already exists
 
 # -----------------------------
 # Routes
@@ -142,28 +127,48 @@ def shorten():
     if not is_valid_url(long_url):
         return jsonify({"ok": False, "error": "Invalid URL"}), 400
 
-    # Validate custom slug
-    if custom_slug and not slug_pattern.match(custom_slug):
-        return jsonify({"ok": False, "error": "Invalid slug format"}), 400
+    # Validate slug
+    if custom_slug:
+        if not slug_pattern.match(custom_slug):
+            return jsonify({"ok": False, "error": "Invalid slug format"}), 400
+        if URLMap.query.filter_by(slug=custom_slug).first():
+            return jsonify({"ok": False, "error": "Slug already taken"}), 400
+        slug = custom_slug
+    else:
+        try:
+            slug = generate_slug()
+        except Exception as e:
+            logging.error(str(e))
+            return jsonify({"ok": False, "error": "Could not generate unique slug"}), 500
 
     # Expiry handling
     expires_at = None
     if expiry_days:
         try:
             days = int(expiry_days)
-            if 0 < days <= 3650:  # max 10 years
+            if 0 < days <= 3650:  # Max 10 years
                 expires_at = datetime.utcnow() + timedelta(days=days)
         except ValueError:
             return jsonify({"ok": False, "error": "Invalid expiry value"}), 400
 
-    # Create or get existing
-    entry, created = create_or_get_short_url(long_url, custom_slug=custom_slug, expires_at=expires_at)
+    # Save to DB with slug collision handling
+    new_entry = URLMap(slug=slug, long_url=long_url, expires_at=expires_at)
+    try:
+        db.session.add(new_entry)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        slug = generate_slug()
+        new_entry.slug = slug
+        db.session.add(new_entry)
+        db.session.commit()
 
+    logging.info(f"Created new short URL: {slug} -> {long_url}")
     return jsonify({
         "ok": True,
-        "code": entry.slug,
-        "short_url": request.host_url + entry.slug,
-        "msg": "URL shortened successfully!" if created else "URL already shortened!"
+        "code": slug,
+        "short_url": request.host_url + slug,
+        "msg": "URL shortened successfully!"
     })
 
 @app.route("/<slug>")
@@ -194,6 +199,9 @@ def stats(slug):
         })
     return jsonify({"ok": False, "error": "Slug not found"}), 404
 
+# -----------------------------
+# Cleanup expired URLs (optional endpoint)
+# -----------------------------
 @app.route("/cleanup", methods=["POST"])
 def cleanup():
     count = URLMap.query.filter(URLMap.expires_at < datetime.utcnow()).delete()
