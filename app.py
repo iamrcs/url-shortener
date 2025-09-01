@@ -1,129 +1,149 @@
-import os
 import re
 import string
 import random
-from urllib.parse import urlparse
+from datetime import datetime, timedelta
+
 from flask import Flask, request, jsonify, redirect, render_template
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
-app = Flask(__name__)
+# ---------------- CONFIG ----------------
+app = Flask(__name__, static_folder=".", template_folder=".")
 CORS(app)
 
 # SQLite Database
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///urls.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
 db = SQLAlchemy(app)
 
-# Regex for valid slug
-slug_pattern = re.compile(r"^[a-zA-Z0-9_-]{3,50}$")
+# Flask-Limiter (rate limiting per IP)
+limiter = Limiter(get_remote_address, app=app, default_limits=[])
 
-
-# Database Model
-class URLMap(db.Model):
+# ---------------- MODEL ----------------
+class URL(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    slug = db.Column(db.String(50), unique=True, nullable=False)
-    long_url = db.Column(db.Text, nullable=False)
+    slug = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    target = db.Column(db.String(2048), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=True)
     clicks = db.Column(db.Integer, default=0)
 
+    def is_expired(self):
+        return self.expires_at and datetime.utcnow() > self.expires_at
 
-with app.app_context():
-    db.create_all()
 
-
-# Helpers
+# ---------------- HELPERS ----------------
 def generate_slug(length=6):
+    """Generate a random slug"""
     chars = string.ascii_letters + string.digits
-    while True:
-        slug = "".join(random.choices(chars, k=length))
-        if not URLMap.query.filter_by(slug=slug).first():
-            return slug
+    return "".join(random.choices(chars, k=length))
 
 
-def is_valid_url(url: str) -> bool:
-    try:
-        parsed = urlparse(url)
-        return all([parsed.scheme in ["http", "https"], parsed.netloc])
-    except Exception:
-        return False
+def validate_slug(slug):
+    """Check allowed slug format"""
+    return re.fullmatch(r"[A-Za-z0-9_-]{3,50}", slug) is not None
 
 
-# Routes
+# ---------------- ROUTES ----------------
 @app.route("/")
-def index():
-    return render_template("index.html")
+def home():
+    """Serve index.html frontend"""
+    return app.send_static_file("index.html")
 
 
 @app.route("/shorten", methods=["POST"])
+@limiter.limit("1/second")  # one request per second per IP
 def shorten():
-    data = request.get_json()
-    if not data or "url" not in data:
+    data = request.get_json() or {}
+
+    long_url = data.get("url", "").strip()
+    custom_slug = data.get("slug", "").strip()
+    expiry_days = data.get("expiry_days")
+
+    if not long_url:
         return jsonify({"ok": False, "error": "Missing URL"}), 400
 
-    long_url = data["url"].strip()
-    custom_slug = data.get("slug", "").strip()
+    # Handle expiry
+    expires_at = None
+    if expiry_days:
+        try:
+            days = int(expiry_days)
+            if days > 0:
+                expires_at = datetime.utcnow() + timedelta(days=days)
+        except ValueError:
+            return jsonify({"ok": False, "error": "Invalid expiry days"}), 400
 
-    # Validate URL
-    if not is_valid_url(long_url):
-        return jsonify({"ok": False, "error": "Invalid URL"}), 400
-
-    # Validate slug
+    # Handle slug
     if custom_slug:
-        if not slug_pattern.match(custom_slug):
-            return jsonify({"ok": False, "error": "Invalid slug format"}), 400
-        if URLMap.query.filter_by(slug=custom_slug).first():
+        if not validate_slug(custom_slug):
+            return jsonify({
+                "ok": False,
+                "error": "Invalid slug. Use A–Z, a–z, 0–9, dash, underscore, min 3 chars"
+            }), 400
+        if URL.query.filter_by(slug=custom_slug).first():
             return jsonify({"ok": False, "error": "Slug already taken"}), 400
         slug = custom_slug
     else:
+        # Generate unique slug
         slug = generate_slug()
+        while URL.query.filter_by(slug=slug).first():
+            slug = generate_slug()
 
     # Save to DB
-    new_entry = URLMap(slug=slug, long_url=long_url)
-    db.session.add(new_entry)
+    new_url = URL(slug=slug, target=long_url, expires_at=expires_at)
+    db.session.add(new_url)
     db.session.commit()
 
     return jsonify({
         "ok": True,
         "code": slug,
-        "msg": "URL shortened successfully!"
+        "msg": "Short URL created successfully"
     })
 
 
 @app.route("/<slug>")
 def redirect_slug(slug):
-    entry = URLMap.query.filter_by(slug=slug).first()
-    if entry:
-        entry.clicks += 1
-        db.session.commit()
-        return redirect(entry.long_url)
-    return jsonify({"ok": False, "error": "Slug not found"}), 404
+    """Redirect to original URL"""
+    url_entry = URL.query.filter_by(slug=slug).first()
+    if not url_entry:
+        return jsonify({"ok": False, "error": "Short URL not found"}), 404
+
+    if url_entry.is_expired():
+        return jsonify({"ok": False, "error": "This link has expired"}), 410
+
+    url_entry.clicks += 1
+    db.session.commit()
+    return redirect(url_entry.target)
 
 
-@app.route("/api/stats/<slug>")
+@app.route("/stats/<slug>")
 def stats(slug):
-    entry = URLMap.query.filter_by(slug=slug).first()
-    if entry:
-        return jsonify({
-            "ok": True,
-            "slug": entry.slug,
-            "url": entry.long_url,
-            "clicks": entry.clicks,
-            "short_url": request.host_url + entry.slug
-        })
-    return jsonify({"ok": False, "error": "Slug not found"}), 404
+    """Get stats for a short URL"""
+    url_entry = URL.query.filter_by(slug=slug).first()
+    if not url_entry:
+        return jsonify({"ok": False, "error": "Short URL not found"}), 404
+
+    return jsonify({
+        "ok": True,
+        "slug": slug,
+        "target": url_entry.target,
+        "created_at": url_entry.created_at.isoformat(),
+        "expires_at": url_entry.expires_at.isoformat() if url_entry.expires_at else None,
+        "clicks": url_entry.clicks
+    })
 
 
-# Error Handlers
-@app.errorhandler(404)
-def not_found(e):
-    return jsonify({"ok": False, "error": "Endpoint not found"}), 404
+# ---------------- ERROR HANDLERS ----------------
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    return jsonify({"ok": False, "error": "Too many requests. Please wait."}), 429
 
 
-@app.errorhandler(500)
-def server_error(e):
-    return jsonify({"ok": False, "error": "Internal server error"}), 500
-
-
+# ---------------- MAIN ----------------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    with app.app_context():
+        db.create_all()
+    app.run(host="0.0.0.0", port=5000)
