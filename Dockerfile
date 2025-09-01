@@ -30,8 +30,9 @@ COPY . /var/www/html/
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html
 
-# Apache config for .htaccess support
+# Apache config for .htaccess support + fix ServerName warning
 RUN { \
+    echo 'ServerName localhost'; \
     echo '<Directory /var/www/html/>'; \
     echo '    AllowOverride All'; \
     echo '    Require all granted'; \
@@ -58,5 +59,10 @@ RUN { \
 # Stage 4: Expose & Run
 # ---------------------------
 
+# Apache default listens on 80, we remap to 8080 for Koyeb
 EXPOSE 8080
+
+# Update Apache to listen on 8080 instead of 80
+RUN sed -i 's/80/8080/g' /etc/apache2/ports.conf /etc/apache2/sites-available/000-default.conf
+
 CMD ["apache2-foreground"]
