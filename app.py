@@ -2,6 +2,7 @@ import os
 import re
 import string
 import random
+import ipaddress
 from urllib.parse import urlparse
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, redirect, render_template
@@ -9,6 +10,7 @@ from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from sqlalchemy.exc import IntegrityError
 import logging
 
 # -----------------------------
@@ -85,9 +87,20 @@ def is_valid_url(url: str) -> bool:
         parsed = urlparse(url)
         if parsed.scheme not in ["http", "https"] or not parsed.netloc:
             return False
-        # Prevent redirects to localhost or private IPs
-        if parsed.hostname in ["localhost", "127.0.0.1"] or parsed.hostname.startswith("192.168."):
+
+        # Convert hostname to IP for private IP check
+        try:
+            ip = ipaddress.ip_address(parsed.hostname)
+            if ip.is_private or ip.is_loopback:
+                return False
+        except ValueError:
+            # Not an IP address, ignore
+            pass
+
+        # Prevent localhost or private network domains
+        if parsed.hostname in ["localhost"] or parsed.hostname.startswith("192.168.") or parsed.hostname.startswith("10.") or parsed.hostname.startswith("172."):
             return False
+
         return True
     except Exception:
         return False
@@ -102,7 +115,7 @@ def index():
 @app.route("/shorten", methods=["POST"])
 @limiter.limit("1/second")
 def shorten():
-    data = request.get_json(force=True)
+    data = request.get_json(silent=True)
     if not data or "url" not in data:
         return jsonify({"ok": False, "error": "Missing URL"}), 400
 
@@ -138,12 +151,19 @@ def shorten():
         except ValueError:
             return jsonify({"ok": False, "error": "Invalid expiry value"}), 400
 
-    # Save to DB
+    # Save to DB with slug collision handling
     new_entry = URLMap(slug=slug, long_url=long_url, expires_at=expires_at)
-    db.session.add(new_entry)
-    db.session.commit()
-    logging.info(f"Created new short URL: {slug} -> {long_url}")
+    try:
+        db.session.add(new_entry)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        slug = generate_slug()
+        new_entry.slug = slug
+        db.session.add(new_entry)
+        db.session.commit()
 
+    logging.info(f"Created new short URL: {slug} -> {long_url}")
     return jsonify({
         "ok": True,
         "code": slug,
@@ -178,6 +198,15 @@ def stats(slug):
             "short_url": request.host_url + entry.slug
         })
     return jsonify({"ok": False, "error": "Slug not found"}), 404
+
+# -----------------------------
+# Cleanup expired URLs (optional endpoint)
+# -----------------------------
+@app.route("/cleanup", methods=["POST"])
+def cleanup():
+    count = URLMap.query.filter(URLMap.expires_at < datetime.utcnow()).delete()
+    db.session.commit()
+    return jsonify({"ok": True, "deleted": count, "msg": "Expired URLs removed"})
 
 # -----------------------------
 # Error Handlers
