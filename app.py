@@ -9,7 +9,6 @@ from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_caching import Cache
 import logging
 
 # -----------------------------
@@ -24,13 +23,10 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     RATELIMIT_DEFAULT = "200 per day;50 per hour"
     DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///urls.db")
-    CACHE_TYPE = "SimpleCache"
-    CACHE_DEFAULT_TIMEOUT = 300
 
 app = Flask(__name__)
 app.config.from_object(Config)
 CORS(app)
-cache = Cache(app)
 
 # Fix Postgres URL for SQLAlchemy if needed
 db_url = app.config["DATABASE_URL"]
@@ -96,10 +92,6 @@ def is_valid_url(url: str) -> bool:
     except Exception:
         return False
 
-@cache.memoize()
-def get_url(slug):
-    return URLMap.query.filter_by(slug=slug).first()
-
 # -----------------------------
 # Routes
 # -----------------------------
@@ -161,7 +153,7 @@ def shorten():
 
 @app.route("/<slug>")
 def redirect_slug(slug):
-    entry = get_url(slug)
+    entry = URLMap.query.filter_by(slug=slug).first()
     if entry:
         if entry.expires_at and entry.expires_at < datetime.utcnow():
             return jsonify({"ok": False, "error": "Link expired"}), 410
@@ -173,7 +165,7 @@ def redirect_slug(slug):
 
 @app.route("/api/stats/<slug>")
 def stats(slug):
-    entry = get_url(slug)
+    entry = URLMap.query.filter_by(slug=slug).first()
     if entry:
         return jsonify({
             "ok": True,
