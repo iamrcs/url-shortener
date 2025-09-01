@@ -15,8 +15,6 @@ import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 import redis
 from rq import Queue
-from rq.job import Job
-from worker import conn  # Redis connection for RQ worker
 
 # -----------------------------
 # Logging
@@ -54,7 +52,7 @@ limiter = Limiter(get_remote_address, app=app)
 # Redis & RQ Setup
 # -----------------------------
 cache = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
-queue = Queue(connection=conn)
+queue = Queue(connection=cache)  # use same Redis instance
 
 # -----------------------------
 # Security Headers
@@ -74,9 +72,10 @@ slug_pattern = re.compile(r"^[a-zA-Z0-9_-]{3,50}$")
 RESERVED_SLUGS = {"admin", "login", "api", "signup", "stats", "shorten"}
 
 # -----------------------------
-# Database Models
+# Database Models (URLMap first)
 # -----------------------------
 class URLMap(db.Model):
+    __tablename__ = "urlmap"
     id = db.Column(db.Integer, primary_key=True)
     slug = db.Column(db.String(50), unique=True, index=True, nullable=False)
     long_url = db.Column(db.Text, index=True, nullable=False)
@@ -86,8 +85,9 @@ class URLMap(db.Model):
     expires_at = db.Column(db.DateTime, nullable=True)
 
 class Click(db.Model):
+    __tablename__ = "click"
     id = db.Column(db.Integer, primary_key=True)
-    url_id = db.Column(db.Integer, db.ForeignKey("URLMap.id"))
+    url_id = db.Column(db.Integer, db.ForeignKey("urlmap.id"), nullable=False)
     ip_address = db.Column(db.String(45))
     user_agent = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -116,7 +116,6 @@ def is_valid_url(url: str) -> bool:
         parsed = urlparse(url)
         if parsed.scheme not in ["http", "https"] or not parsed.netloc:
             return False
-        # Prevent private IPs
         try:
             ip = ipaddress.ip_address(parsed.hostname)
             if ip.is_private or ip.is_loopback:
@@ -131,14 +130,12 @@ def is_valid_url(url: str) -> bool:
 
 def create_or_get_short_url(long_url, custom_slug=None, expires_at=None):
     """Return existing short URL if available or create a new one"""
-    # Check cache first
     cached_slug = cache.get(f"url:{long_url}")
     if cached_slug:
         entry = URLMap.query.filter_by(slug=cached_slug).first()
         if entry and (entry.expires_at is None or entry.expires_at > datetime.utcnow()):
             return entry, False
 
-    # Check DB for existing
     existing = URLMap.query.filter_by(long_url=long_url).filter(
         (URLMap.expires_at == None) | (URLMap.expires_at > datetime.utcnow())
     ).first()
@@ -147,11 +144,11 @@ def create_or_get_short_url(long_url, custom_slug=None, expires_at=None):
         cache.set(f"slug:{existing.slug}", existing.long_url, ex=3600)
         return existing, False
 
-    # Use custom slug or Base62 ID
     if custom_slug:
         slug = custom_slug
     else:
-        new_id = db.session.execute("SELECT nextval('urlmap_id_seq')").scalar()
+        # Use next ID + Base62 to ensure unique slug
+        new_id = db.session.execute("SELECT nextval('urlmap_id_seq')").scalar() if "postgresql" in db_url else random.randint(100000, 999999)
         slug = encode_base62(new_id)
 
     while True:
@@ -164,7 +161,7 @@ def create_or_get_short_url(long_url, custom_slug=None, expires_at=None):
             return new_entry, True
         except IntegrityError:
             db.session.rollback()
-            slug = encode_base62(random.randint(1_000_000, 9_999_999))
+            slug = encode_base62(random.randint(100000, 999999))
 
 def record_click_async(entry_id, ip, ua):
     entry = URLMap.query.get(entry_id)
@@ -233,7 +230,6 @@ def shorten():
 
 @app.route("/<slug>")
 def redirect_slug(slug):
-    # Try cache first
     long_url = cache.get(f"slug:{slug}")
     if long_url:
         entry = URLMap.query.filter_by(slug=slug).first()
@@ -245,7 +241,6 @@ def redirect_slug(slug):
     if entry:
         if entry.expires_at and entry.expires_at < datetime.utcnow():
             return jsonify({"ok": False, "error": "Link expired"}), 410
-        # Async click logging
         queue.enqueue(record_click_async, entry.id, request.remote_addr, request.headers.get("User-Agent"))
         return redirect(entry.long_url, code=301)
     return jsonify({"ok": False, "error": "Slug not found"}), 404
