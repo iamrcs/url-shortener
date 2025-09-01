@@ -4,22 +4,42 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>URL Shortner</title>
-  <link rel="stylesheet" href="/static/style.css" />
+  <title>URL Shortner - Fast, Simple & Secure Link Shortening</title>
+
+  <!-- ✅ SEO Meta Tags -->
+  <meta name="description" content="Professional URL Shortner - create short, secure, and easy-to-share links. Fast, simple, and reliable link management tool.">
+  <meta name="keywords" content="URL shortener, link shortener, short URL, custom link, free URL shortener, secure short link">
+  <meta name="author" content="URL Shortner">
+
+  <!-- ✅ Open Graph for Social Sharing -->
+  <meta property="og:title" content="URL Shortner - Fast, Simple & Secure" />
+  <meta property="og:description" content="Shorten your long URLs into easy-to-share short links with expiry options. Free, simple, and secure URL shortener." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://yourdomain.com/" />
+  <meta property="og:image" content="https://yourdomain.com/preview.png" />
+
+  <!-- ✅ Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="URL Shortner - Fast, Simple & Secure">
+  <meta name="twitter:description" content="Create secure short links with custom slugs and expiry. Perfect for sharing anywhere.">
+  <meta name="twitter:image" content="https://yourdomain.com/preview.png">
+
+  <base href="/" />
+  <link rel="stylesheet" href="static/style.css" />
 </head>
 
 <body>
   <main>
     <header>
-      <h1>URL Shortner</h1>
-      <p>Responsive · Simple · Professional</p>
+      <h1>Professional URL Shortner</h1>
+      <p>Fast · Simple · Secure</p>
     </header>
 
-    <!-- Shortener Form -->
+    <!-- URL Shortener Form -->
     <form id="shortForm" autocomplete="off" novalidate>
       <div>
         <label for="longUrl">Enter Long URL</label>
-        <input id="longUrl" type="url" required placeholder="https://example.com/very/long/link">
+        <input id="longUrl" type="url" required placeholder="https://example.com/very/long/link" aria-required="true" />
       </div>
 
       <div>
@@ -28,13 +48,19 @@
         <p class="small">Allowed: A–Z, a–z, 0–9, dash (-), underscore (_), min 3 chars</p>
       </div>
 
+      <div>
+        <label for="expiry_days">Expiry (in days)</label>
+        <input id="expiry_days" type="number" min="1" placeholder="Optional">
+        <p class="small">Leave empty for permanent links</p>
+      </div>
+
       <div class="controls">
         <button type="submit" class="btn btn-primary">Shorten URL</button>
         <button type="button" id="clearBtn" class="btn">Clear</button>
       </div>
     </form>
 
-    <!-- Output -->
+    <!-- Output Section -->
     <section id="outputSection">
       <h2 style="font-size:15px;font-weight:600;margin-bottom:8px">Shortened Link</h2>
       <input id="output" readonly aria-label="Shortened URL" />
@@ -45,15 +71,47 @@
       <p class="small" id="msg"></p>
     </section>
 
+    <!-- ✅ How To Use Section -->
+    <section class="stats">
+      <h2>How to Use This URL Shortner</h2>
+      <p><strong>Step 1:</strong> Paste your long URL in the input box above.</p>
+      <p><strong>Step 2:</strong> (Optional) Add a custom slug for a personalized short link.</p>
+      <p><strong>Step 3:</strong> (Optional) Set an expiry time in days for temporary links.</p>
+      <p><strong>Step 4:</strong> Click <strong>Shorten URL</strong> and get your short link instantly.</p>
+      <p><strong>Step 5:</strong> Copy or open the generated short link.</p>
+    </section>
+
+    <!-- ✅ FAQs Section -->
+    <section class="stats">
+      <h2>FAQs</h2>
+      <p><strong>What is a URL Shortner?</strong><br>
+        A URL shortener converts long links into short, easy-to-share URLs while keeping them secure.</p>
+
+      <p><strong>Is this service free?</strong><br>
+        Yes, this tool is 100% free to use without any hidden charges.</p>
+
+      <p><strong>Can I use custom slugs?</strong><br>
+        Yes, you can add your own custom slug (e.g., <code>my-link</code>) for better branding.</p>
+
+      <p><strong>Can links expire?</strong><br>
+        Yes, you can set an expiry in days. Once expired, the link will no longer work.</p>
+
+      <p><strong>Is it secure?</strong><br>
+        Absolutely. All links are handled securely, and malicious URLs are blocked.</p>
+    </section>
+
     <footer>
       <p>Powered by <a href="/" target="_blank" rel="noopener">URL Shortner</a></p>
     </footer>
   </main>
 
+  <!-- JavaScript -->
   <script>
+    const base = window.location.origin;
     const form = document.getElementById('shortForm');
     const input = document.getElementById('longUrl');
     const slug = document.getElementById('slug');
+    const expiry = document.getElementById('expiry_days');
     const output = document.getElementById('output');
     const section = document.getElementById('outputSection');
     const copyBtn = document.getElementById('copyBtn');
@@ -67,6 +125,7 @@
       e.preventDefault();
       const url = input.value.trim();
       const slugVal = slug.value.trim();
+      const expiryVal = expiry ? expiry.value.trim() : "";
 
       if (!url) {
         alert("Please enter a valid URL");
@@ -77,14 +136,14 @@
         const res = await fetch('/shorten', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url, slug: slugVal })
+          body: JSON.stringify({ url, slug: slugVal, expiry_days: expiryVal })
         });
         const j = await res.json();
 
         section.style.display = 'block';
 
         if (j.ok) {
-          const shortUrl = window.location.origin + '/' + j.code;
+          const shortUrl = base + '/' + j.code;
           output.value = shortUrl;
           openBtn.href = shortUrl;
           msg.textContent = j.msg;
@@ -113,6 +172,7 @@
     clearBtn.addEventListener('click', () => {
       input.value = "";
       slug.value = "";
+      if (expiry) expiry.value = "";
       output.value = "";
       msg.textContent = "";
       section.style.display = 'none';
