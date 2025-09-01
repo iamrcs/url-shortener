@@ -1,9 +1,0 @@
-RewriteEngine On
-
-# Handle short slugs
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^([A-Za-z0-9\-_]+)/?$ redirect.php?slug=$1 [L]
-
-# Stats endpoint: /stats/slug
-RewriteRule ^stats/([A-Za-z0-9\-_]+)/?$ stats.php?slug=$1 [L]
