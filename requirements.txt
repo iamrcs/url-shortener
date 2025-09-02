@@ -12,3 +12,4 @@ pydantic
 python-dotenv
 requests
 flask-wtf
+urllib
