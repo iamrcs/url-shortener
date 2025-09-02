@@ -64,6 +64,7 @@ BLACKLISTED_DOMAINS = ["example.com", "malicious.com"]
 # Database Models
 # -----------------------------
 class URLMap(db.Model):
+    __tablename__ = "url_map"  # fixed table name
     id = db.Column(db.Integer, primary_key=True)
     slug = db.Column(db.String(50), unique=True, index=True, nullable=False)
     long_url = db.Column(db.Text, unique=True, nullable=False)  # Prevent duplicate URLs
@@ -73,8 +74,9 @@ class URLMap(db.Model):
     expires_at = db.Column(db.DateTime, nullable=True)
 
 class ClickLog(db.Model):
+    __tablename__ = "click_log"  # fixed table name
     id = db.Column(db.Integer, primary_key=True)
-    url_id = db.Column(db.Integer, db.ForeignKey("URLMap.id"), nullable=False)
+    url_id = db.Column(db.Integer, db.ForeignKey("url_map.id"), nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     referrer = db.Column(db.String(500))
     user_agent = db.Column(db.String(500))
@@ -226,7 +228,7 @@ def redirect_slug(slug):
         entry.last_clicked = datetime.utcnow()
         db.session.commit()
 
-        # Optional: Log click details
+        # Log click details
         click = ClickLog(
             url_id=entry.id,
             referrer=request.referrer,
