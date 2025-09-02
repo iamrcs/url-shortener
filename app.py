@@ -12,6 +12,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from sqlalchemy.exc import IntegrityError
 import logging
+import redis
 
 # -----------------------------
 # Logging
@@ -23,8 +24,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 # -----------------------------
 class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    RATELIMIT_DEFAULT = "200 per day;50 per hour"
     DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///urls.db")
+    RATE_LIMIT_DEFAULT = "200 per day;50 per hour"
+    REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -38,8 +40,15 @@ app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 
 db = SQLAlchemy(app)
 
-# Rate Limiter
-limiter = Limiter(get_remote_address, app=app)
+# -----------------------------
+# Rate Limiter with Redis
+# -----------------------------
+redis_conn = redis.from_url(app.config["REDIS_URL"])
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri=app.config["REDIS_URL"],
+    app=app
+)
 
 # -----------------------------
 # Security Headers
@@ -63,7 +72,7 @@ slug_pattern = re.compile(r"^[a-zA-Z0-9_-]{3,50}$")
 class URLMap(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     slug = db.Column(db.String(50), unique=True, index=True, nullable=False)
-    long_url = db.Column(db.Text, unique=True, nullable=False)  # Ensure no duplicate URLs
+    long_url = db.Column(db.Text, unique=True, nullable=False)
     clicks = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_clicked = db.Column(db.DateTime, nullable=True)
@@ -77,9 +86,9 @@ with app.app_context():
 # -----------------------------
 def generate_slug(length=6):
     chars = string.ascii_letters + string.digits
-    for _ in range(10):  # Avoid infinite loop
+    for _ in range(10):
         slug = "".join(random.choices(chars, k=length))
-        if not URLMap.query.filter_by(slug=slug).first():
+        if not URLMap.query.filter(db.func.lower(URLMap.slug) == slug.lower()).first():
             return slug
     raise Exception("Failed to generate unique slug")
 
@@ -95,13 +104,11 @@ def is_valid_url(url: str) -> bool:
             if ip.is_private or ip.is_loopback:
                 return False
         except ValueError:
-            # Not an IP address
             pass
 
-        # Prevent localhost or private network domains
-        private_prefixes = ("10.", "192.168.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.", "172.21.",
-                            "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.", "172.28.", "172.29.",
-                            "172.30.", "172.31.")
+        private_prefixes = ("10.", "192.168.", "172.16.", "172.17.", "172.18.", "172.19.",
+                            "172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.",
+                            "172.26.", "172.27.", "172.28.", "172.29.", "172.30.", "172.31.")
         if parsed.hostname in ["localhost"] or parsed.hostname.startswith(private_prefixes):
             return False
 
@@ -112,6 +119,9 @@ def is_valid_url(url: str) -> bool:
 def get_existing_slug_for_url(url: str):
     existing = URLMap.query.filter_by(long_url=url).first()
     return existing.slug if existing else None
+
+def slug_exists(slug: str):
+    return URLMap.query.filter(db.func.lower(URLMap.slug) == slug.lower()).first() is not None
 
 # -----------------------------
 # Routes
@@ -131,26 +141,25 @@ def shorten():
     custom_slug = data.get("slug", "").strip()
     expiry_days = data.get("expiry_days")
 
-    # Validate URL
     if not is_valid_url(long_url):
         return jsonify({"ok": False, "error": "Invalid URL"}), 400
 
-    # Avoid duplicate URLs
+    # Return existing short URL if duplicate
     existing_slug = get_existing_slug_for_url(long_url)
     if existing_slug and not custom_slug:
-        short_url = request.host_url + existing_slug
         return jsonify({
             "ok": True,
             "code": existing_slug,
-            "short_url": short_url,
+            "short_url": request.host_url + existing_slug,
             "msg": "URL already shortened"
         })
 
-    # Validate slug
+    # Validate custom slug
     if custom_slug:
+        custom_slug = custom_slug.strip()
         if not slug_pattern.match(custom_slug):
             return jsonify({"ok": False, "error": "Invalid slug format"}), 400
-        if URLMap.query.filter_by(slug=custom_slug).first():
+        if slug_exists(custom_slug):
             return jsonify({"ok": False, "error": "Slug already taken"}), 400
         slug = custom_slug
     else:
@@ -165,7 +174,7 @@ def shorten():
     if expiry_days:
         try:
             days = int(expiry_days)
-            if 0 < days <= 3650:  # Max 10 years
+            if 0 < days <= 3650:
                 expires_at = datetime.utcnow() + timedelta(days=days)
         except ValueError:
             return jsonify({"ok": False, "error": "Invalid expiry value"}), 400
@@ -192,7 +201,7 @@ def shorten():
 
 @app.route("/<slug>")
 def redirect_slug(slug):
-    entry = URLMap.query.filter_by(slug=slug).first()
+    entry = URLMap.query.filter(db.func.lower(URLMap.slug) == slug.lower()).first()
     if entry:
         if entry.expires_at and entry.expires_at < datetime.utcnow():
             return jsonify({"ok": False, "error": "Link expired"}), 410
@@ -204,7 +213,7 @@ def redirect_slug(slug):
 
 @app.route("/api/stats/<slug>")
 def stats(slug):
-    entry = URLMap.query.filter_by(slug=slug).first()
+    entry = URLMap.query.filter(db.func.lower(URLMap.slug) == slug.lower()).first()
     if entry:
         return jsonify({
             "ok": True,
