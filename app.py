@@ -3,6 +3,7 @@ import re
 import string
 import random
 import ipaddress
+import hashlib
 from urllib.parse import urlparse
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, redirect, render_template
@@ -49,35 +50,50 @@ def set_security_headers(response):
     response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Cache-Control'] = 'no-store'
+    response.headers['Content-Security-Policy'] = "default-src 'self';"
     return response
 
 # -----------------------------
 # Regex for valid slug
 # -----------------------------
 slug_pattern = re.compile(r"^[a-zA-Z0-9_-]{3,50}$")
+BLACKLISTED_DOMAINS = ["example.com", "malicious.com"]
 
 # -----------------------------
-# Database Model
+# Database Models
 # -----------------------------
 class URLMap(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     slug = db.Column(db.String(50), unique=True, index=True, nullable=False)
-    long_url = db.Column(db.Text, nullable=False)
+    long_url = db.Column(db.Text, unique=True, nullable=False)  # Prevent duplicate URLs
     clicks = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_clicked = db.Column(db.DateTime, nullable=True)
     expires_at = db.Column(db.DateTime, nullable=True)
 
+class ClickLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    url_id = db.Column(db.Integer, db.ForeignKey("URLMap.id"), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    referrer = db.Column(db.String(500))
+    user_agent = db.Column(db.String(500))
+
 with app.app_context():
     db.create_all()
 
 # -----------------------------
-# Helpers
+# Helper Functions
 # -----------------------------
-def generate_slug(length=6):
+def generate_slug(length=6, url=None):
     chars = string.ascii_letters + string.digits
-    for _ in range(10):  # Avoid infinite loop
+    for _ in range(10):
         slug = "".join(random.choices(chars, k=length))
+        if not URLMap.query.filter_by(slug=slug).first():
+            return slug
+    # fallback deterministic hash
+    if url:
+        slug = hashlib.md5(url.encode()).hexdigest()[:length]
         if not URLMap.query.filter_by(slug=slug).first():
             return slug
     raise Exception("Failed to generate unique slug")
@@ -88,22 +104,37 @@ def is_valid_url(url: str) -> bool:
         if parsed.scheme not in ["http", "https"] or not parsed.netloc:
             return False
 
-        # Convert hostname to IP for private IP check
+        # Block blacklisted domains
+        if any(domain in parsed.hostname for domain in BLACKLISTED_DOMAINS):
+            return False
+
+        # Block local/private IPs
         try:
             ip = ipaddress.ip_address(parsed.hostname)
             if ip.is_private or ip.is_loopback:
                 return False
         except ValueError:
-            # Not an IP address, ignore
-            pass
+            pass  # Not an IP
 
-        # Prevent localhost or private network domains
-        if parsed.hostname in ["localhost"] or parsed.hostname.startswith("192.168.") or parsed.hostname.startswith("10.") or parsed.hostname.startswith("172."):
+        private_prefixes = ("10.", "192.168.", "172.16.", "172.17.", "172.18.", "172.19.",
+                            "172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.",
+                            "172.26.", "172.27.", "172.28.", "172.29.", "172.30.", "172.31.")
+        if parsed.hostname == "localhost" or parsed.hostname.startswith(private_prefixes):
             return False
 
         return True
     except Exception:
         return False
+
+def enforce_https(url: str) -> str:
+    parsed = urlparse(url)
+    if parsed.scheme == "http":
+        url = url.replace("http://", "https://", 1)
+    return url
+
+def get_existing_slug_for_url(url: str):
+    existing = URLMap.query.filter_by(long_url=url).first()
+    return existing.slug if existing else None
 
 # -----------------------------
 # Routes
@@ -121,11 +152,25 @@ def shorten():
 
     long_url = data.get("url", "").strip()
     custom_slug = data.get("slug", "").strip()
-    expiry_days = data.get("expiry_days")  # optional
+    expiry_days = data.get("expiry_days")
 
     # Validate URL
     if not is_valid_url(long_url):
         return jsonify({"ok": False, "error": "Invalid URL"}), 400
+
+    # Enforce HTTPS
+    long_url = enforce_https(long_url)
+
+    # Avoid duplicate URLs
+    existing_slug = get_existing_slug_for_url(long_url)
+    if existing_slug and not custom_slug:
+        short_url = request.host_url + existing_slug
+        return jsonify({
+            "ok": True,
+            "code": existing_slug,
+            "short_url": short_url,
+            "msg": "URL already shortened"
+        })
 
     # Validate slug
     if custom_slug:
@@ -136,7 +181,7 @@ def shorten():
         slug = custom_slug
     else:
         try:
-            slug = generate_slug()
+            slug = generate_slug(url=long_url)
         except Exception as e:
             logging.error(str(e))
             return jsonify({"ok": False, "error": "Could not generate unique slug"}), 500
@@ -146,19 +191,19 @@ def shorten():
     if expiry_days:
         try:
             days = int(expiry_days)
-            if 0 < days <= 3650:  # Max 10 years
+            if 0 < days <= 3650:
                 expires_at = datetime.utcnow() + timedelta(days=days)
         except ValueError:
             return jsonify({"ok": False, "error": "Invalid expiry value"}), 400
 
-    # Save to DB with slug collision handling
+    # Save to DB
     new_entry = URLMap(slug=slug, long_url=long_url, expires_at=expires_at)
     try:
         db.session.add(new_entry)
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        slug = generate_slug()
+        slug = generate_slug(url=long_url)
         new_entry.slug = slug
         db.session.add(new_entry)
         db.session.commit()
@@ -180,6 +225,16 @@ def redirect_slug(slug):
         entry.clicks += 1
         entry.last_clicked = datetime.utcnow()
         db.session.commit()
+
+        # Optional: Log click details
+        click = ClickLog(
+            url_id=entry.id,
+            referrer=request.referrer,
+            user_agent=request.headers.get("User-Agent")
+        )
+        db.session.add(click)
+        db.session.commit()
+
         return redirect(entry.long_url, code=301)
     return jsonify({"ok": False, "error": "Slug not found"}), 404
 
@@ -199,9 +254,6 @@ def stats(slug):
         })
     return jsonify({"ok": False, "error": "Slug not found"}), 404
 
-# -----------------------------
-# Cleanup expired URLs (optional endpoint)
-# -----------------------------
 @app.route("/cleanup", methods=["POST"])
 def cleanup():
     count = URLMap.query.filter(URLMap.expires_at < datetime.utcnow()).delete()
