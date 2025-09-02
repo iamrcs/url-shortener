@@ -8,3 +8,7 @@ psycopg2-binary
 redis
 rq
 apscheduler
+pydantic
+python-dotenv
+requests
+flask-wtf
