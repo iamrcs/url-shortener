@@ -13,11 +13,21 @@ from flask_limiter.util import get_remote_address
 from sqlalchemy.exc import IntegrityError
 import logging
 import redis
+import atexit
+import threading
+import time
+
+from backup_github import push_db_to_github, restore_db_from_github
 
 # -----------------------------
 # Logging
 # -----------------------------
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
+# -----------------------------
+# Restore DB from GitHub on startup
+# -----------------------------
+restore_db_from_github()
 
 # -----------------------------
 # Flask App & Config
@@ -147,9 +157,6 @@ def slug_exists(slug: str) -> bool:
 def index():
     return render_template("index.html")
 
-# -----------------------------
-# Web shorten
-# -----------------------------
 @app.route("/shorten", methods=["POST"])
 @limiter.limit("5/second")
 def shorten():
@@ -161,7 +168,6 @@ def shorten():
     if not is_valid_url(long_url):
         return jsonify({"ok": False, "error": "Invalid URL"}), 400
 
-    # Return existing if no custom slug
     if not custom_slug:
         existing_slug = get_existing_by_url(long_url)
         if existing_slug:
@@ -172,7 +178,6 @@ def shorten():
                 "msg": "URL already shortened"
             }), 200
 
-    # Handle custom slug
     if custom_slug:
         if not slug_pattern.match(custom_slug):
             return jsonify({"ok": False, "error": "Invalid slug format"}), 400
@@ -199,7 +204,6 @@ def shorten():
         db.session.rollback()
         return jsonify({"ok": False, "error": "Slug already taken"}), 409
 
-    # Cache in Redis
     if r:
         try:
             r.set(f"url:{long_url}", slug, ex=3600*24*30)
@@ -214,20 +218,13 @@ def shorten():
         "msg": "URL shortened successfully!"
     }), 201
 
-# -----------------------------
-# API shorten (JSON only)
-# -----------------------------
 @app.route("/api/shorten", methods=["POST"])
 @limiter.limit("5/second")
 def api_shorten():
-    return shorten()  # Same as web version
+    return shorten()
 
-# -----------------------------
-# Redirect
-# -----------------------------
 @app.route("/<slug>")
 def redirect_slug(slug):
-    # Try Redis first
     long_url = None
     if r:
         cached = r.get(f"slug:{slug}")
@@ -257,9 +254,6 @@ def redirect_slug(slug):
 
     return jsonify({"ok": False, "error": "Slug not found"}), 404
 
-# -----------------------------
-# Stats
-# -----------------------------
 @app.route("/api/stats/<slug>")
 def stats(slug):
     entry = URLMap.query.filter(db.func.lower(URLMap.slug) == slug.lower()).first()
@@ -276,9 +270,6 @@ def stats(slug):
         }), 200
     return jsonify({"ok": False, "error": "Slug not found"}), 404
 
-# -----------------------------
-# Cleanup expired URLs
-# -----------------------------
 @app.route("/cleanup", methods=["POST"])
 def cleanup():
     count = URLMap.query.filter(URLMap.expires_at < datetime.now(timezone.utc)).delete()
@@ -300,6 +291,29 @@ def ratelimit_handler(e):
 def server_error(e):
     logging.exception("Server error: %s", e)
     return jsonify({"ok": False, "error": "Internal server error"}), 500
+
+# -----------------------------
+# Auto backup thread at 23:59 daily
+# -----------------------------
+def daily_backup_thread():
+    while True:
+        now = datetime.now()
+        target = now.replace(hour=23, minute=59, second=0, microsecond=0)
+        if now > target:
+            target += timedelta(days=1)
+        sleep_seconds = (target - now).total_seconds()
+        time.sleep(sleep_seconds)
+        try:
+            push_db_to_github()
+        except Exception as e:
+            logging.error("Failed to push DB backup: %s", e)
+
+threading.Thread(target=daily_backup_thread, daemon=True).start()
+
+# -----------------------------
+# Backup on shutdown
+# -----------------------------
+atexit.register(push_db_to_github)
 
 # -----------------------------
 # Run App
