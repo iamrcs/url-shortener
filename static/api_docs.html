@@ -62,13 +62,13 @@
 
     <h2>Base URL</h2>
     <p>All endpoints are relative to your domain, for example:</p>
-    <pre>https://yourdomain.com/api/</pre>
+    <pre>https://iiuo.org/</pre>
 
     <hr>
 
     <h2>1. Shorten a URL</h2>
     <div class="endpoint">
-        <h3>POST /api/shorten</h3>
+        <h3>POST /shorten</h3>
         <p>Create a short URL for a given long URL.</p>
 
         <h4>Request Headers</h4>
@@ -89,7 +89,7 @@
         <pre>{
   "ok": true,
   "code": "abc123",
-  "short_url": "https://yourdomain.com/abc123",
+  "short_url": "https://iiuo.org/abc123",
   "msg": "URL shortened successfully!"
 }</pre>
 
@@ -100,7 +100,7 @@
 }</pre>
 
         <h4>Example CURL</h4>
-        <pre class="curl">curl -X POST https://yourdomain.com/api/shorten \
+        <pre class="curl">curl -X POST https://iiuo.org/shorten \
   -H "Content-Type: application/json" \
   -d '{"url":"https://example.com","slug":"myalias","expiry_days":30}'</pre>
     </div>
@@ -113,7 +113,7 @@
         <p>Visit the short URL to redirect to the original long URL.</p>
 
         <p>Example:</p>
-        <pre>https://yourdomain.com/myalias</pre>
+        <pre>https://iiuo.org/myalias</pre>
 
         <p>Returns a 301 redirect to the original long URL.</p>
 
@@ -144,7 +144,7 @@
   "created_at": "2025-09-11T12:00:00.000000",
   "last_clicked": "2025-09-11T14:30:00.000000",
   "expires_at": "2025-10-11T12:00:00.000000",
-  "short_url": "https://yourdomain.com/abc123"
+  "short_url": "https://iiuo.org/abc123"
 }</pre>
 
         <p class="error">If slug not found:</p>
@@ -169,7 +169,7 @@
 }</pre>
 
         <h4>Example CURL</h4>
-        <pre class="curl">curl -X POST https://yourdomain.com/cleanup</pre>
+        <pre class="curl">curl -X POST https://iiuo.org/cleanup</pre>
     </div>
 
     <hr>
