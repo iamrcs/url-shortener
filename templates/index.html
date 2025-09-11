@@ -273,7 +273,7 @@
             openBtn.href = "#";
 
             try {
-                const res = await fetch('https://territorial-benni-itisuniqueofficial-a5a4a567.koyeb.app/shorten', {
+                const res = await fetch('/shorten', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url, slug: slugVal })
@@ -323,3 +323,4 @@
 </body>
 
 </html>
+
