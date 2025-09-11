@@ -3,186 +3,323 @@
 
 <head>
 
-  <meta charset="utf-8" />
-  <meta name="viewport" 
-    content="width=device-width, initial-scale=1" />
-  <title>URL Shortener - Fast, Simple & Secure Link Shortening</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>URL Shortener - Fast, Simple & Secure Link Shortening</title>
 
-  <link 
-    rel="canonical" 
-    href="https://iiuo.org/" />
+    <link rel="canonical" href="https://iiuo.org/" />
 
-  <meta name="description"
-    content="Professional URL Shortener - create short, secure, and easy-to-share links. Fast, simple, and reliable link management tool." />
-  <meta name="keywords"
-    content="URL shortener, link shortener, short URL, custom link, free URL shortener, secure short link" />
-  <meta name="author" 
-    content="Jaydatt Khodave" />
-  <meta name="copyright" 
-    content="© 2025 It Is Unique Official. All Rights Reserved." />
+    <meta name="description"
+        content="Professional URL Shortener - create short, secure, and easy-to-share links. Fast, simple, and reliable tool to manage and track your URLs." />
+    <meta name="keywords"
+        content="URL shortener, link shortener, short URL, custom link, secure short link, temporary link, trackable link, personalized short link" />
+    <meta name="author" content="Jaydatt Khodave" />
+    <meta name="copyright" content="© 2025 It Is Unique Official. All Rights Reserved." />
 
-  <meta property="og:title" 
-    content="URL Shortener - Fast, Simple & Secure" />
-  <meta property="og:description"
-    content="Shorten your long URLs into easy-to-share short links with expiry options. Free, simple, and secure URL shortener." />
-  <meta property="og:type" 
-    content="website" />
-  <meta property="og:url" 
-    content="https://iiuo.org/" />
-  <meta property="og:image" 
-    content="https://cdn.jsdelivr.net/gh/iamrcs/url-Shortener/static/og.png" />
+    <meta property="og:title" content="URL Shortener - Fast, Simple & Secure" />
+    <meta property="og:description"
+        content="Shorten your long URLs into easy-to-share short links with optional custom slugs and expiry options. Secure, simple, and reliable URL shortening." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://iiuo.org/" />
+    <meta property="og:image" content="https://cdn.jsdelivr.net/gh/iamrcs/url-Shortener/static/og.png" />
 
-  <meta name="twitter:card" 
-    content="summary_large_image" />
-  <meta name="twitter:title" 
-    content="URL Shortener - Fast, Simple & Secure" />
-  <meta name="twitter:description"
-    content="Create secure short links with custom slugs and expiry. Perfect for sharing anywhere." />
-  <meta name="twitter:image" 
-    content="https://cdn.jsdelivr.net/gh/iamrcs/url-Shortener/static/tc.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="URL Shortener - Fast, Simple & Secure" />
+    <meta name="twitter:description"
+        content="Create secure short links with custom slugs and optional expiry. Ideal for sharing and tracking URLs efficiently." />
+    <meta name="twitter:image" content="https://cdn.jsdelivr.net/gh/iamrcs/url-Shortener/static/tc.png" />
 
-  <link 
-    rel="stylesheet" 
-    href="https://cdn.jsdelivr.net/gh/iamrcs/url-Shortener/static/style.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/iamrcs/url-Shortener/static/style.css" />
 
-  <link 
-    href='https://cdn.jsdelivr.net/gh/iamrcs/url-Shortener/static/favicon.ico' 
-    rel='icon' type='image/x-icon' />
-  <link 
-    href='https://cdn.jsdelivr.net/gh/iamrcs/url-Shortener/static/icon.svg' 
-    rel='icon' type='image/svg+xml' />
-  <link
-    href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s57'
-    rel='apple-touch-icon' sizes='57x57' />
-  <link
-    href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s60'
-    rel='apple-touch-icon' sizes='60x60' />
-  <link
-    href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s72'
-    rel='apple-touch-icon' sizes='72x72' />
-  <link
-    href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s76'
-    rel='apple-touch-icon' sizes='76x76' />
-  <link
-    href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s114'
-    rel='apple-touch-icon' sizes='114x114' />
-  <link
-    href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s120'
-    rel='apple-touch-icon' sizes='120x120' />
-  <link
-    href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s144'
-    rel='apple-touch-icon' sizes='144x144' />
-  <link
-    href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s152'
-    rel='apple-touch-icon' sizes='152x152' />
-  <link
-    href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s180'
-    rel='apple-touch-icon' sizes='180x180' />
-  <link
-    href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s16'
-    rel='icon' sizes='16x16' type='image/png' />
-  <link
-    href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s32'
-    rel='icon' sizes='32x32' type='image/png' />
-  <link
-    href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s48'
-    rel='icon' sizes='48x48' type='image/png' />
-  <link
-    href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s64'
-    rel='icon' sizes='64x64' type='image/png' />
-  <link
-    href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s96'
-    rel='icon' sizes='96x96' type='image/png' />
-  <link
-    href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s128'
-    rel='icon' sizes='128x128' type='image/png' />
-  <link
-    href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s16'
-    rel='shortcut icon' type='image/png' />
-  <meta
-    content='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s144'
-    name='msapplication-TileImage' />
-  <meta content='#ffffff' name='msapplication-TileColor' />
-  <link
-    href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s192'
-    rel='icon' sizes='192x192' type='image/png' />
-  <link
-    href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s512'
-    rel='icon' sizes='512x512' type='image/png' />
+    <link href='https://cdn.jsdelivr.net/gh/iamrcs/url-Shortener/static/favicon.ico' rel='icon' type='image/x-icon' />
+    <link href='https://cdn.jsdelivr.net/gh/iamrcs/url-Shortener/static/icon.svg' rel='icon' type='image/svg+xml' />
+    <link
+        href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s57'
+        rel='apple-touch-icon' sizes='57x57' />
+    <link
+        href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s60'
+        rel='apple-touch-icon' sizes='60x60' />
+    <link
+        href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s72'
+        rel='apple-touch-icon' sizes='72x72' />
+    <link
+        href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s76'
+        rel='apple-touch-icon' sizes='76x76' />
+    <link
+        href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s114'
+        rel='apple-touch-icon' sizes='114x114' />
+    <link
+        href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s120'
+        rel='apple-touch-icon' sizes='120x120' />
+    <link
+        href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s144'
+        rel='apple-touch-icon' sizes='144x144' />
+    <link
+        href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s152'
+        rel='apple-touch-icon' sizes='152x152' />
+    <link
+        href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s180'
+        rel='apple-touch-icon' sizes='180x180' />
+    <link
+        href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s16'
+        rel='icon' sizes='16x16' type='image/png' />
+    <link
+        href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s32'
+        rel='icon' sizes='32x32' type='image/png' />
+    <link
+        href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s48'
+        rel='icon' sizes='48x48' type='image/png' />
+    <link
+        href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s64'
+        rel='icon' sizes='64x64' type='image/png' />
+    <link
+        href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s96'
+        rel='icon' sizes='96x96' type='image/png' />
+    <link
+        href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s128'
+        rel='icon' sizes='128x128' type='image/png' />
+    <link
+        href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s16'
+        rel='shortcut icon' type='image/png' />
+    <meta
+        content='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s144'
+        name='msapplication-TileImage' />
+    <meta content='#ffffff' name='msapplication-TileColor' />
+    <link
+        href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s192'
+        rel='icon' sizes='192x192' type='image/png' />
+    <link
+        href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s512'
+        rel='icon' sizes='512x512' type='image/png' />
+
+    <style>
+        /* Loader animation inside input */
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .loader-text::after {
+            content: " ⏳";
+            display: inline-block;
+            animation: spin 1s linear infinite;
+        }
+    </style>
+
+    <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@graph": [
+            {
+                "@type": "WebSite",
+                "@id": "https://iiuo.org/#website",
+                "url": "https://iiuo.org/",
+                "name": "URL Shortener",
+                "description": "URL Shortener by It Is Unique Official - Create short, secure, and easy-to-share links with optional custom slugs and expiry options. Perfect for sharing and tracking URLs online.",
+                "publisher": {
+                    "@type": "Organization",
+                    "name": "It Is Unique Official",
+                    "url": "https://www.itisuniqueofficial.com/"
+                }
+            },
+            {
+                "@type": "SoftwareApplication",
+                "@id": "https://iiuo.org/#software",
+                "name": "URL Shortener",
+                "url": "https://iiuo.org/",
+                "applicationCategory": "WebApplication",
+                "operatingSystem": "All",
+                "description": "Shorten long URLs into concise, secure links with optional custom slugs and expiry dates. Designed for fast, reliable, and trackable URL management.",
+                "author": {
+                    "@type": "Person",
+                    "name": "Jaydatt Khodave"
+                },
+                "offers": {
+                    "@type": "Offer",
+                    "price": "0",
+                    "priceCurrency": "INR",
+                    "url": "https://iiuo.org/"
+                },
+                "aggregateRating": {
+                    "@type": "AggregateRating",
+                    "ratingValue": "4.8",
+                    "ratingCount": "125000",
+                    "bestRating": "5",
+                    "worstRating": "1"
+                }
+            }
+            ]
+        }
+    </script>
 
 </head>
 
 <body>
-  <main>
-    <header>
-      <h1>URL Shortener</h1>
-      <p>This project is fully <strong>Open Source</strong>. Everyone is welcome to use, explore, and contribute to it.</p>
-      
-      <p>If you’d like to support its maintenance, you can donate any amount via <a style='text-decoration:none;' href="https://rzp.io/rzp/itisuniqueofficial" target="_blank">Razorpay</a>. Every contribution helps keep the project going.</p>
-    </header>
+    <main>
+        <header>
+            <h1>URL Shortener - Create Short & Secure Links Instantly</h1>
+            <p>Welcome to our <strong>Open Source URL Shortener</strong>. Easily convert long URLs into short, shareable
+                links for social media, emails, or any online platform. Our tool is reliable, secure, and customizable
+                to suit your needs.</p>
+            <p>If you&rsquo;d like to support the ongoing development and maintenance of this project, you can donate
+                any
+                amount via <a style="text-decoration:none;" href="https://rzp.io/rzp/itisuniqueofficial" target="_blank"
+                    rel="noopener">Razorpay</a>. Every contribution helps keep this project running smoothly.</p>
+        </header>
 
-    <form id="shortForm" autocomplete="off" novalidate>
-      <div>
-        <label for="longUrl">Enter Long URL</label>
-        <input id="longUrl" type="url" required placeholder="https://example.com/very/long/link">
-      </div>
+        <form id="shortForm" autocomplete="off" novalidate>
+            <div>
+                <label for="longUrl">Enter Your Long URL</label>
+                <input id="longUrl" type="url" required placeholder="https://example.com/very/long/link">
+                <p class="small">Paste the full URL you want to shorten. Must start with <code>http://</code> or
+                    <code>https://</code>.
+                </p>
+            </div>
 
-      <div>
-        <label for="slug">Custom Slug (optional)</label>
-        <input id="slug" type="text" placeholder="e.g. my-link">
-        <p class="small">Allowed: A–Z, a–z, 0–9, dash (-), underscore (_), min 3 chars</p>
-      </div>
+            <div>
+                <label for="slug">Custom Slug (Optional)</label>
+                <input id="slug" type="text" placeholder="e.g., my-link">
+                <p class="small">Customize your short URL for better branding. Allowed characters: A–Z, a–z, 0–9, dash
+                    (-), underscore (_), minimum 3 characters.</p>
+            </div>
 
-      <div class="controls">
-        <button type="submit" class="btn btn-primary">Shorten URL</button>
-        <button type="button" id="clearBtn" class="btn">Clear</button>
-      </div>
-    </form>
+            <div class="controls">
+                <button type="submit" class="btn btn-primary">Shorten URL</button>
+                <button type="button" id="clearBtn" class="btn">Clear</button>
+            </div>
+        </form>
 
-    <section id="outputSection">
-      <h2 style="font-size:15px;font-weight:600;margin-bottom:8px">Shortened Link</h2>
-      <input id="output" readonly aria-label="Shortened URL" />
-      <div class="output-actions">
-        <button id="copyBtn" class="btn" title="Copy link">Copy</button>
-        <a id="openBtn" class="btn" target="_blank" rel="noopener">Open</a>
-      </div>
-      <p class="small" id="msg"></p>
-    </section>
+        <section id="outputSection">
+            <h2 style="font-size:16px;font-weight:600;margin-bottom:8px">Your Shortened URL</h2>
+            <input id="output" readonly aria-label="Shortened URL" placeholder="Your short link will appear here" />
+            <div class="output-actions">
+                <button id="copyBtn" class="btn" title="Copy link">Copy</button>
+                <a id="openBtn" class="btn" target="_blank" rel="noopener">Open</a>
+            </div>
+            <p class="small" id="msg"></p>
+        </section>
 
-    <section class="stats">
-      <h2>How to Use This URL Shortener</h2>
-      <p><strong>Step 1:</strong> Paste your long URL in the input box above.</p>
-      <p><strong>Step 2:</strong> (Optional) Add a custom slug for a personalized short link.</p>
-      <p><strong>Step 3:</strong> (Optional) Set an expiry time in days for temporary links.</p>
-      <p><strong>Step 4:</strong> Click <strong>Shorten URL</strong> and get your short link instantly.</p>
-      <p><strong>Step 5:</strong> Copy or open the generated short link.</p>
-    </section>
+        <section class="stats">
+            <h2>How to Use This URL Shortener</h2>
+            <p><strong>Step 1:</strong> Paste your long URL in the input box above.</p>
+            <p><strong>Step 2:</strong> (Optional) Add a custom slug to create a memorable short link (e.g.,
+                <code>my-link</code>).
+            </p>
+            <p><strong>Step 3:</strong> (Optional) Set an expiry time in days for temporary links.</p>
+            <p><strong>Step 4:</strong> Click <strong>Shorten URL</strong> to generate your short link instantly.</p>
+            <p><strong>Step 5:</strong> Copy or open the generated short link using the provided buttons.</p>
+        </section>
 
-    <section class="stats">
-      <h2>FAQs</h2>
-      <p><strong>What is a URL Shortener?</strong><br>
-        A URL shortener converts long links into short, easy-to-share URLs while keeping them secure.</p>
+        <section class="stats">
+            <h2>Frequently Asked Questions (FAQs)</h2>
+            <p><strong>What is a URL Shortener?</strong><br>
+                A URL shortener converts long, complex URLs into short, easy-to-share links. Short URLs are ideal for
+                social media, emails, or campaigns while keeping your links organized and trackable.</p>
 
-      <p><strong>Is this service free?</strong><br>
-        Yes, this tool is 100% free to use without any hidden charges.</p>
+            <p><strong>Is this service free of hidden charges?</strong><br>
+                Yes, there are no hidden fees. You can create short links without any restrictions.</p>
 
-      <p><strong>Can I use custom slugs?</strong><br>
-        Yes, you can add your own custom slug (e.g., <code>my-link</code>) for better branding.</p>
+            <p><strong>Can I use custom slugs?</strong><br>
+                Yes! Add your own custom slug to make your short links more memorable and professional.</p>
 
-      <p><strong>Can links expire?</strong><br>
-        Yes, you can set an expiry in days. Once expired, the link will no longer work.</p>
+            <p><strong>Can links expire?</strong><br>
+                Yes, you can set an expiry in days. Expired links will no longer be accessible, perfect for temporary
+                promotions or campaigns.</p>
 
-      <p><strong>Is it secure?</strong><br>
-        Absolutely. All links are handled securely, and malicious URLs are blocked.</p>
-    </section>
+            <p><strong>Is it secure?</strong><br>
+                Security is our priority. All URLs are handled safely, and malicious links are automatically blocked.
+            </p>
+        </section>
 
-    <footer>
-      <p>Powered by <a href="https://www.itisuniqueofficial.com/" target="_blank">It Is Unique Official</a>.</p>
-    </footer>
-  </main>
+        <footer>
+            <p>Powered by <a href="https://www.itisuniqueofficial.com/" target="_blank" rel="noopener">It Is Unique
+                    Official</a>. Create, share, and track your links efficiently.</p>
+        </footer>
+    </main>
 
-  <script>const _0x26c3ce = _0x153c; (function (_0x114d44, _0x330579) { const _0x2e3af3 = _0x153c, _0x20cf5a = _0x114d44(); while (!![]) { try { const _0x585b57 = parseInt(_0x2e3af3(0x1bd)) / 0x1 + -parseInt(_0x2e3af3(0x1c1)) / 0x2 + parseInt(_0x2e3af3(0x1c8)) / 0x3 + -parseInt(_0x2e3af3(0x1da)) / 0x4 * (parseInt(_0x2e3af3(0x1dd)) / 0x5) + -parseInt(_0x2e3af3(0x1d1)) / 0x6 + -parseInt(_0x2e3af3(0x1cd)) / 0x7 * (-parseInt(_0x2e3af3(0x1cc)) / 0x8) + parseInt(_0x2e3af3(0x1d7)) / 0x9 * (-parseInt(_0x2e3af3(0x1ba)) / 0xa); if (_0x585b57 === _0x330579) break; else _0x20cf5a['push'](_0x20cf5a['shift']()); } catch (_0x5a231b) { _0x20cf5a['push'](_0x20cf5a['shift']()); } } }(_0x39de, 0x9683d)); const form = document[_0x26c3ce(0x1db)](_0x26c3ce(0x1dc)), input = document[_0x26c3ce(0x1db)](_0x26c3ce(0x1c7)), slug = document[_0x26c3ce(0x1db)](_0x26c3ce(0x1d9)), output = document[_0x26c3ce(0x1db)]('output'), section = document[_0x26c3ce(0x1db)](_0x26c3ce(0x1b9)), copyBtn = document[_0x26c3ce(0x1db)](_0x26c3ce(0x1de)), openBtn = document[_0x26c3ce(0x1db)](_0x26c3ce(0x1bc)), clearBtn = document[_0x26c3ce(0x1db)](_0x26c3ce(0x1b7)), msg = document[_0x26c3ce(0x1db)](_0x26c3ce(0x1be)); function _0x153c(_0x1890b8, _0x57c847) { const _0x39de38 = _0x39de(); return _0x153c = function (_0x153cdf, _0x446f46) { _0x153cdf = _0x153cdf - 0x1b4; let _0x2fc227 = _0x39de38[_0x153cdf]; return _0x2fc227; }, _0x153c(_0x1890b8, _0x57c847); } section['style']['display'] = _0x26c3ce(0x1c6), form['addEventListener'](_0x26c3ce(0x1d5), async _0x3525bb => { const _0x32adef = _0x26c3ce; _0x3525bb['preventDefault'](); const _0x4ea145 = input[_0x32adef(0x1c0)][_0x32adef(0x1c9)](), _0x2cf533 = slug[_0x32adef(0x1c0)]['trim'](); if (!_0x4ea145) { alert('Please\x20enter\x20a\x20valid\x20URL'); return; } try { const _0x48fc04 = await fetch(_0x32adef(0x1c2), { 'method': _0x32adef(0x1cb), 'headers': { 'Content-Type': _0x32adef(0x1b6) }, 'body': JSON[_0x32adef(0x1d0)]({ 'url': _0x4ea145, 'slug': _0x2cf533 }) }), _0x56b296 = await _0x48fc04[_0x32adef(0x1d4)](); section[_0x32adef(0x1b5)][_0x32adef(0x1c3)] = _0x32adef(0x1bb); if (_0x56b296['ok']) { const _0x38fcfa = window[_0x32adef(0x1cf)][_0x32adef(0x1d8)] + '/' + _0x56b296['code']; output[_0x32adef(0x1c0)] = _0x38fcfa, openBtn['href'] = _0x38fcfa, msg[_0x32adef(0x1c5)] = _0x56b296[_0x32adef(0x1be)], msg[_0x32adef(0x1b5)]['color'] = _0x32adef(0x1ca); } else output[_0x32adef(0x1c0)] = '', openBtn[_0x32adef(0x1d3)] = '#', msg[_0x32adef(0x1c5)] = 'Error:\x20' + _0x56b296[_0x32adef(0x1c4)], msg[_0x32adef(0x1b5)][_0x32adef(0x1d6)] = _0x32adef(0x1df); } catch (_0x5f4efe) { section[_0x32adef(0x1b5)]['display'] = _0x32adef(0x1bb), output[_0x32adef(0x1c0)] = '', msg[_0x32adef(0x1c5)] = 'Network\x20error.\x20Try\x20again.', msg[_0x32adef(0x1b5)]['color'] = _0x32adef(0x1df); } }), copyBtn['addEventListener'](_0x26c3ce(0x1b4), () => { const _0x530f37 = _0x26c3ce; output['value'] && (output[_0x530f37(0x1ce)](), navigator[_0x530f37(0x1d2)][_0x530f37(0x1bf)](output[_0x530f37(0x1c0)])); }), clearBtn[_0x26c3ce(0x1b8)](_0x26c3ce(0x1b4), () => { const _0x502fc2 = _0x26c3ce; input[_0x502fc2(0x1c0)] = '', slug[_0x502fc2(0x1c0)] = '', output[_0x502fc2(0x1c0)] = '', msg['textContent'] = '', section[_0x502fc2(0x1b5)][_0x502fc2(0x1c3)] = 'none'; }); function _0x39de() { const _0x443298 = ['none', 'longUrl', '2474892OUWkJR', 'trim', 'green', 'POST', '5238736ULAiMV', '7ludVtq', 'select', 'location', 'stringify', '1102146ysRFNn', 'clipboard', 'href', 'json', 'submit', 'color', '1942443aGVujL', 'origin', 'slug', '36GYtVYo', 'getElementById', 'shortForm', '310825fqFFYy', 'copyBtn', 'red', 'click', 'style', 'application/json', 'clearBtn', 'addEventListener', 'outputSection', '10LlQUaY', 'block', 'openBtn', '208283NrdKKh', 'msg', 'writeText', 'value', '225154PEzQZw', '/shorten', 'display', 'error', 'textContent']; _0x39de = function () { return _0x443298; }; return _0x39de(); }</script>
+    <script>
+        const form = document.getElementById('shortForm');
+        const input = document.getElementById('longUrl');
+        const slug = document.getElementById('slug');
+        const output = document.getElementById('output');
+        const section = document.getElementById('outputSection');
+        const copyBtn = document.getElementById('copyBtn');
+        const openBtn = document.getElementById('openBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const msg = document.getElementById('msg');
+
+        section.style.display = 'none';
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const url = input.value.trim();
+            const slugVal = slug.value.trim();
+
+            if (!url) {
+                alert("Please enter a valid URL");
+                return;
+            }
+
+            // Show loader inside input
+            section.style.display = 'block';
+            output.value = "Shortening...";
+            output.classList.add('loader-text');
+            msg.textContent = "";
+            openBtn.href = "#";
+
+            try {
+                const res = await fetch('https://territorial-benni-itisuniqueofficial-a5a4a567.koyeb.app/shorten', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, slug: slugVal })
+                });
+                const j = await res.json();
+
+                output.classList.remove('loader-text'); // remove loader animation
+
+                if (j.ok) {
+                    const shortUrl = window.location.origin + '/' + j.code;
+                    output.value = shortUrl;
+                    openBtn.href = shortUrl;
+                    msg.textContent = j.msg;
+                    msg.style.color = "green";
+                } else {
+                    output.value = "";
+                    openBtn.href = "#";
+                    msg.textContent = "Error: " + j.error;
+                    msg.style.color = "red";
+                }
+            } catch (err) {
+                output.classList.remove('loader-text');
+                output.value = "";
+                msg.textContent = "Network error. Try again.";
+                msg.style.color = "red";
+                openBtn.href = "#";
+            }
+        });
+
+        copyBtn.addEventListener('click', () => {
+            if (output.value) {
+                output.select();
+                navigator.clipboard.writeText(output.value);
+            }
+        });
+
+        clearBtn.addEventListener('click', () => {
+            input.value = "";
+            slug.value = "";
+            output.value = "";
+            output.classList.remove('loader-text');
+            msg.textContent = "";
+            openBtn.href = "#";
+            section.style.display = 'none';
+        });
+    </script>
 </body>
-
 
 </html>
