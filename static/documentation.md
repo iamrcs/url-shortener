@@ -9,14 +9,14 @@ This documentation explains how to use the URL Shortener API, integrate it into 
 All endpoints are relative to your domain:
 
 ```
-https://yourdomain.com/api/
+https://iiuo.org/
 ```
 
 ---
 
 ## 2. Shorten a URL via API
 
-**Endpoint:** `POST /api/shorten`
+**Endpoint:** `POST /shorten`
 
 Create a short URL for a given long URL.
 
@@ -44,7 +44,7 @@ Content-Type: application/json
 {
   "ok": true,
   "code": "abc123",
-  "short_url": "https://yourdomain.com/abc123",
+  "short_url": "https://iiuo.org/abc123",
   "msg": "URL shortened successfully!"
 }
 ```
@@ -61,7 +61,7 @@ Content-Type: application/json
 ### Example CURL
 
 ```bash
-curl -X POST https://yourdomain.com/api/shorten \
+curl -X POST https://iiuo.org/shorten \
 -H "Content-Type: application/json" \
 -d '{"url":"https://example.com","slug":"myalias","expiry_days":30}'
 ```
@@ -75,7 +75,7 @@ curl -X POST https://yourdomain.com/api/shorten \
 Visit the short URL to redirect to the original long URL.
 
 ```
-https://yourdomain.com/myalias
+https://iiuo.org/myalias
 ```
 
 **Error Responses**
@@ -113,7 +113,7 @@ Get click stats and metadata about a short URL.
   "created_at": "2025-09-11T12:00:00.000000",
   "last_clicked": "2025-09-11T14:30:00.000000",
   "expires_at": "2025-10-11T12:00:00.000000",
-  "short_url": "https://yourdomain.com/abc123"
+  "short_url": "https://iiuo.org/abc123"
 }
 ```
 
@@ -147,7 +147,7 @@ Delete all expired URLs from the database.
 ### Example CURL
 
 ```bash
-curl -X POST https://yourdomain.com/cleanup
+curl -X POST https://iiuo.org/cleanup
 ```
 
 ---
@@ -169,7 +169,7 @@ async function shorten() {
     const url = document.getElementById("long-url").value;
     const slug = document.getElementById("custom-slug").value;
 
-    const response = await fetch("https://yourdomain.com/api/shorten", {
+    const response = await fetch("https://iiuo.org/shorten", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url, slug })
