@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>URL Shortener API Docs</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: auto;
+            padding: 20px;
+            background-color: #f7f7f7;
+        }
+        h1, h2, h3 {
+            color: #333;
+        }
+        code, pre {
+            background-color: #eee;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: Consolas, monospace;
+        }
+        pre {
+            overflow-x: auto;
+        }
+        .endpoint {
+            background: #e0f7fa;
+            border-left: 5px solid #00bcd4;
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+        .success {
+            color: green;
+        }
+        .error {
+            color: red;
+        }
+        table {
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        table, th, td {
+            border: 1px solid #aaa;
+            padding: 8px;
+        }
+        th {
+            background-color: #ddd;
+        }
+        .curl {
+            background-color: #d7ccc8;
+            padding: 8px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>URL Shortener API Documentation</h1>
+    <p>Welcome! This document explains how to use the URL Shortener API to create, manage, and track short URLs.</p>
+
+    <h2>Base URL</h2>
+    <p>All endpoints are relative to your domain, for example:</p>
+    <pre>https://yourdomain.com/api/</pre>
+
+    <hr>
+
+    <h2>1. Shorten a URL</h2>
+    <div class="endpoint">
+        <h3>POST /api/shorten</h3>
+        <p>Create a short URL for a given long URL.</p>
+
+        <h4>Request Headers</h4>
+        <ul>
+            <li><code>Content-Type: application/json</code></li>
+        </ul>
+
+        <h4>Request Body (JSON)</h4>
+        <pre>{
+  "url": "https://example.com",
+  "slug": "customslug",       // optional, custom short code
+  "expiry_days": 30            // optional, number of days until link expires
+}</pre>
+
+        <h4>Response</h4>
+
+        <p class="success">Success (201 or 200)</p>
+        <pre>{
+  "ok": true,
+  "code": "abc123",
+  "short_url": "https://yourdomain.com/abc123",
+  "msg": "URL shortened successfully!"
+}</pre>
+
+        <p class="error">Error (400 or 409)</p>
+        <pre>{
+  "ok": false,
+  "error": "Slug already taken"
+}</pre>
+
+        <h4>Example CURL</h4>
+        <pre class="curl">curl -X POST https://yourdomain.com/api/shorten \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com","slug":"myalias","expiry_days":30}'</pre>
+    </div>
+
+    <hr>
+
+    <h2>2. Redirect to Long URL</h2>
+    <div class="endpoint">
+        <h3>GET /&lt;slug&gt;</h3>
+        <p>Visit the short URL to redirect to the original long URL.</p>
+
+        <p>Example:</p>
+        <pre>https://yourdomain.com/myalias</pre>
+
+        <p>Returns a 301 redirect to the original long URL.</p>
+
+        <p>If the link is expired or not found:</p>
+        <pre>{
+  "ok": false,
+  "error": "Link expired"
+}</pre>
+        <pre>{
+  "ok": false,
+  "error": "Slug not found"
+}</pre>
+    </div>
+
+    <hr>
+
+    <h2>3. URL Stats</h2>
+    <div class="endpoint">
+        <h3>GET /api/stats/&lt;slug&gt;</h3>
+        <p>Get statistics about a short URL, including clicks, creation date, and expiry.</p>
+
+        <h4>Response</h4>
+        <pre>{
+  "ok": true,
+  "slug": "abc123",
+  "url": "https://example.com",
+  "clicks": 42,
+  "created_at": "2025-09-11T12:00:00.000000",
+  "last_clicked": "2025-09-11T14:30:00.000000",
+  "expires_at": "2025-10-11T12:00:00.000000",
+  "short_url": "https://yourdomain.com/abc123"
+}</pre>
+
+        <p class="error">If slug not found:</p>
+        <pre>{
+  "ok": false,
+  "error": "Slug not found"
+}</pre>
+    </div>
+
+    <hr>
+
+    <h2>4. Cleanup Expired URLs</h2>
+    <div class="endpoint">
+        <h3>POST /cleanup</h3>
+        <p>Delete all expired URLs from the database.</p>
+
+        <h4>Response</h4>
+        <pre>{
+  "ok": true,
+  "deleted": 5,
+  "msg": "Expired URLs removed"
+}</pre>
+
+        <h4>Example CURL</h4>
+        <pre class="curl">curl -X POST https://yourdomain.com/cleanup</pre>
+    </div>
+
+    <hr>
+
+    <h2>5. Error Responses</h2>
+    <ul>
+        <li><strong>400:</strong> Bad Request (missing or invalid data)</li>
+        <li><strong>404:</strong> Endpoint not found</li>
+        <li><strong>409:</strong> Slug already taken</li>
+        <li><strong>410:</strong> Link expired</li>
+        <li><strong>429:</strong> Too many requests (rate limiting)</li>
+        <li><strong>500:</strong> Internal server error</li>
+    </ul>
+
+    <hr>
+
+    <h2>Notes</h2>
+    <ul>
+        <li>Custom slug must be 3–50 characters: letters, digits, dash <code>-</code>, or underscore <code>_</code>.</li>
+        <li>Expiry days are optional. If not provided, the link never expires.</li>
+        <li>Rate limiting applies: 1 request per second per IP.</li>
+    </ul>
+
+    <p>Happy shortening! 🚀</p>
+
+</body>
+</html>
