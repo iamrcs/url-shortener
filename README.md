@@ -2,6 +2,8 @@
 
 A **fast, secure, and feature-rich URL shortener** built with **Flask**, **SQLAlchemy**, and **Redis caching**, capable of shortening long URLs, generating custom slugs, tracking clicks, and handling URL expirations.
 
+For api documentation check [Documentation.md](https://github.com/iamrcs/url-shortener/static/documentation.md).
+
 This project is ideal for personal, team, or production use and comes with **web interface, REST API, and analytics**.
 
 ---
