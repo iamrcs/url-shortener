@@ -21,18 +21,18 @@
         content="Shorten your long URLs into easy-to-share short links with optional custom slugs and expiry options. Secure, simple, and reliable URL shortening." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://iiuo.org/" />
-    <meta property="og:image" content="https://cdn.jsdelivr.net/gh/iamrcs/url-Shortener/static/og.png" />
+    <meta property="og:image" content="https://cdn.jsdelivr.net/gh/iamrcs/url-shortener/static/og.png" />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="URL Shortener - Fast, Simple & Secure" />
     <meta name="twitter:description"
         content="Create secure short links with custom slugs and optional expiry. Ideal for sharing and tracking URLs efficiently." />
-    <meta name="twitter:image" content="https://cdn.jsdelivr.net/gh/iamrcs/url-Shortener/static/tc.png" />
+    <meta name="twitter:image" content="https://cdn.jsdelivr.net/gh/iamrcs/url-shortener/static/tc.png" />
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/iamrcs/url-Shortener/static/style.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/iamrcs/url-shortener/static/style.css" />
 
-    <link href='https://cdn.jsdelivr.net/gh/iamrcs/url-Shortener/static/favicon.ico' rel='icon' type='image/x-icon' />
-    <link href='https://cdn.jsdelivr.net/gh/iamrcs/url-Shortener/static/icon.svg' rel='icon' type='image/svg+xml' />
+    <link href='https://cdn.jsdelivr.net/gh/iamrcs/url-shortener/static/favicon.ico' rel='icon' type='image/x-icon' />
+    <link href='https://cdn.jsdelivr.net/gh/iamrcs/url-shortener/static/icon.svg' rel='icon' type='image/svg+xml' />
     <link
         href='https://blogger.googleusercontent.com/img/a/AVvXsEhkHLu3FwOa7E3fPNbZu1XB9KLW4zNMLTsVwCgWAHIjsF6vwQtRTZETmElbHdIItgJyMjWKXecPPpKMPWL2IQuOn8eR8zfpxbwVJFDyrCHR_cp4bSBudinwLxkwJ4B1-fbRG2b1kdkkGJGxXF3fuJsQ0Vb-UBcL5KkbxuTrw3iIP2dj-7nXl5Hu9tm_vieR=s57'
         rel='apple-touch-icon' sizes='57x57' />
@@ -273,7 +273,7 @@
             openBtn.href = "#";
 
             try {
-                const res = await fetch('/shorten', {
+                const res = await fetch('https://iiuo.org/shorten', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url, slug: slugVal })
@@ -323,4 +323,5 @@
 </body>
 
 </html>
+
 
