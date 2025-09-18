@@ -2,6 +2,7 @@ import os
 import re
 import string
 import secrets
+import json
 from urllib.parse import urlparse
 from datetime import datetime, timedelta, timezone
 from flask import Flask, request, jsonify, redirect, render_template
@@ -92,14 +93,36 @@ class URLMap(db.Model):
     __tablename__ = "url_map"
     id = db.Column(db.Integer, primary_key=True)
     slug = db.Column(db.String(50), unique=True, index=True, nullable=False)
-    long_url = db.Column(db.Text, nullable=False, index=True)  # Added index
+    long_url = db.Column(db.Text, nullable=False, index=True)
     clicks = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     last_clicked = db.Column(db.DateTime, nullable=True)
-    expires_at = db.Column(db.DateTime, nullable=True, index=True)  # Added index
+    expires_at = db.Column(db.DateTime, nullable=True, index=True)
 
-# Initialize database
-db.create_all()
+# -----------------------------
+# Database Initialization
+# -----------------------------
+def init_db():
+    """Initialize the database within an application context."""
+    with app.app_context():
+        db.create_all()
+        logging.info("Database tables created")
+
+# -----------------------------
+# Restore DB on startup
+# -----------------------------
+def startup_tasks():
+    """Perform startup tasks including DB restore and initialization."""
+    with app.app_context():
+        try:
+            restore_db_from_github()
+            logging.info("Database restored from GitHub")
+        except Exception as e:
+            logging.error("Failed to restore DB from GitHub: %s", e)
+        init_db()
+
+# Run startup tasks
+startup_tasks()
 
 # -----------------------------
 # Helpers
@@ -316,11 +339,6 @@ scheduler = BackgroundScheduler()
 scheduler.add_job(push_db_to_github, "cron", hour=23, minute=59)
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
-
-# -----------------------------
-# Restore DB on startup
-# -----------------------------
-restore_db_from_github()
 
 # -----------------------------
 # Run App
