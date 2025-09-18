@@ -37,6 +37,12 @@ class Config:
     DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///urls.db")
     REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
     RATE_LIMIT_DEFAULT = "200 per day;50 per hour"
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,
+        "pool_recycle": 280,
+        "pool_size": 10,
+        "max_overflow": 20,
+    }
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config.from_object(Config)
@@ -76,7 +82,6 @@ def set_security_headers(response):
     response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['Cache-Control'] = 'no-store'
     return response
 
 # -----------------------------
@@ -90,7 +95,7 @@ slug_pattern = re.compile(r"^[a-zA-Z0-9_-]{3,50}$")
 class URLMap(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     slug = db.Column(db.String(50), unique=True, index=True, nullable=False)
-    long_url = db.Column(db.Text, nullable=False)
+    long_url = db.Column(db.Text, nullable=False, index=True)
     clicks = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     last_clicked = db.Column(db.DateTime, nullable=True)
@@ -106,7 +111,12 @@ def generate_slug(length=6, attempts=20):
     chars = string.ascii_letters + string.digits
     for _ in range(attempts):
         slug = "".join(random.choices(chars, k=length))
-        if not URLMap.query.filter(db.func.lower(URLMap.slug) == slug.lower()).first():
+        # quick Redis check
+        if r and r.exists(f"slug:{slug}"):
+            continue
+        if not db.session.query(URLMap.slug).filter(
+            db.func.lower(URLMap.slug) == slug.lower()
+        ).first():
             return slug
     raise Exception("Failed to generate unique slug")
 
@@ -142,13 +152,15 @@ def get_existing_by_url(url: str):
         cached_slug = r.get(f"url:{url}")
         if cached_slug:
             return cached_slug.decode()
-    entry = URLMap.query.filter_by(long_url=url).first()
+    entry = db.session.query(URLMap).filter_by(long_url=url).first()
     if entry and r:
         r.set(f"url:{url}", entry.slug, ex=3600*24*30)
     return entry.slug if entry else None
 
 def slug_exists(slug: str) -> bool:
-    return URLMap.query.filter(db.func.lower(URLMap.slug) == slug.lower()).first() is not None
+    return db.session.query(URLMap.slug).filter(
+        db.func.lower(URLMap.slug) == slug.lower()
+    ).first() is not None
 
 # -----------------------------
 # Routes
@@ -206,8 +218,10 @@ def shorten():
 
     if r:
         try:
-            r.set(f"url:{long_url}", slug, ex=3600*24*30)
-            r.set(f"slug:{slug}", long_url, ex=3600*24*30)
+            with r.pipeline() as pipe:
+                pipe.set(f"url:{long_url}", slug, ex=3600*24*30)
+                pipe.set(f"slug:{slug}", long_url, ex=3600*24*30)
+                pipe.execute()
         except:
             pass
 
@@ -233,7 +247,9 @@ def redirect_slug(slug):
 
     entry = None
     if not long_url:
-        entry = URLMap.query.filter(db.func.lower(URLMap.slug) == slug.lower()).first()
+        entry = db.session.query(URLMap).filter(
+            db.func.lower(URLMap.slug) == slug.lower()
+        ).first()
         if entry:
             long_url = entry.long_url
             if r:
@@ -250,13 +266,16 @@ def redirect_slug(slug):
                 db.session.commit()
             except:
                 db.session.rollback()
+        # use 301 permanent redirect
         return redirect(long_url, code=301)
 
     return jsonify({"ok": False, "error": "Slug not found"}), 404
 
 @app.route("/api/stats/<slug>")
 def stats(slug):
-    entry = URLMap.query.filter(db.func.lower(URLMap.slug) == slug.lower()).first()
+    entry = db.session.query(URLMap).filter(
+        db.func.lower(URLMap.slug) == slug.lower()
+    ).first()
     if entry:
         return jsonify({
             "ok": True,
@@ -272,7 +291,10 @@ def stats(slug):
 
 @app.route("/cleanup", methods=["POST"])
 def cleanup():
-    count = URLMap.query.filter(URLMap.expires_at < datetime.now(timezone.utc)).delete()
+    count = URLMap.query.filter(
+        URLMap.expires_at != None,
+        URLMap.expires_at < datetime.now(timezone.utc)
+    ).delete()
     db.session.commit()
     return jsonify({"ok": True, "deleted": count, "msg": "Expired URLs removed"}), 200
 
