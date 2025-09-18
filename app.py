@@ -105,47 +105,18 @@ with app.app_context():
     db.create_all()
 
 # -----------------------------
-# Cache Helpers
-# -----------------------------
-CACHE_EXPIRY = 3600 * 24 * 90  # 90 days
-
-def cache_slug_url(slug, url):
-    if r:
-        try:
-            with r.pipeline() as pipe:
-                pipe.set(f"url:{url}", slug, ex=CACHE_EXPIRY)
-                pipe.set(f"slug:{slug}", url, ex=CACHE_EXPIRY)
-                pipe.execute()
-        except:
-            pass
-
-def get_url_from_slug(slug):
-    if r:
-        cached = r.get(f"slug:{slug}")
-        if cached:
-            return cached.decode()
-    return None
-
-def get_slug_from_url(url):
-    if r:
-        cached = r.get(f"url:{url}")
-        if cached:
-            return cached.decode()
-    return None
-
-def slug_exists(slug: str) -> bool:
-    return db.session.query(URLMap.id).filter_by(slug=slug).first() is not None
-
-# -----------------------------
 # Helpers
 # -----------------------------
 def generate_slug(length=6, attempts=20):
     chars = string.ascii_letters + string.digits
     for _ in range(attempts):
         slug = "".join(random.choices(chars, k=length))
-        if not get_url_from_slug(slug) and not db.session.query(
-            URLMap.id
-        ).filter_by(slug=slug).first():
+        # quick Redis check
+        if r and r.exists(f"slug:{slug}"):
+            continue
+        if not db.session.query(URLMap.slug).filter(
+            db.func.lower(URLMap.slug) == slug.lower()
+        ).first():
             return slug
     raise Exception("Failed to generate unique slug")
 
@@ -176,6 +147,21 @@ def is_valid_url(url: str) -> bool:
     except Exception:
         return False
 
+def get_existing_by_url(url: str):
+    if r:
+        cached_slug = r.get(f"url:{url}")
+        if cached_slug:
+            return cached_slug.decode()
+    entry = db.session.query(URLMap).filter_by(long_url=url).first()
+    if entry and r:
+        r.set(f"url:{url}", entry.slug, ex=3600*24*30)
+    return entry.slug if entry else None
+
+def slug_exists(slug: str) -> bool:
+    return db.session.query(URLMap.slug).filter(
+        db.func.lower(URLMap.slug) == slug.lower()
+    ).first() is not None
+
 # -----------------------------
 # Routes
 # -----------------------------
@@ -195,13 +181,13 @@ def shorten():
         return jsonify({"ok": False, "error": "Invalid URL"}), 400
 
     if not custom_slug:
-        cached_slug = get_slug_from_url(long_url)
-        if cached_slug:
+        existing_slug = get_existing_by_url(long_url)
+        if existing_slug:
             return jsonify({
                 "ok": True,
-                "code": cached_slug,
-                "short_url": request.host_url + cached_slug,
-                "msg": "URL already shortened (cache)"
+                "code": existing_slug,
+                "short_url": request.host_url + existing_slug,
+                "msg": "URL already shortened"
             }), 200
 
     if custom_slug:
@@ -230,7 +216,14 @@ def shorten():
         db.session.rollback()
         return jsonify({"ok": False, "error": "Slug already taken"}), 409
 
-    cache_slug_url(slug, long_url)
+    if r:
+        try:
+            with r.pipeline() as pipe:
+                pipe.set(f"url:{long_url}", slug, ex=3600*24*30)
+                pipe.set(f"slug:{slug}", long_url, ex=3600*24*30)
+                pipe.execute()
+        except:
+            pass
 
     return jsonify({
         "ok": True,
@@ -246,41 +239,49 @@ def api_shorten():
 
 @app.route("/<slug>")
 def redirect_slug(slug):
-    long_url = get_url_from_slug(slug)
+    long_url = None
+    if r:
+        cached = r.get(f"slug:{slug}")
+        if cached:
+            long_url = cached.decode()
 
     entry = None
     if not long_url:
-        entry = db.session.query(URLMap).filter_by(slug=slug).first()
+        entry = db.session.query(URLMap).filter(
+            db.func.lower(URLMap.slug) == slug.lower()
+        ).first()
         if entry:
             long_url = entry.long_url
-            cache_slug_url(slug, long_url)
+            if r:
+                r.set(f"slug:{slug}", long_url, ex=3600*24*30)
 
     if entry and entry.expires_at and entry.expires_at < datetime.now(timezone.utc):
         return jsonify({"ok": False, "error": "Link expired"}), 410
 
     if long_url:
-        if r:
-            r.incr(f"clicks:{slug}")
-        else:
-            if entry:
-                entry.clicks += 1
-                entry.last_clicked = datetime.now(timezone.utc)
+        if entry:
+            entry.clicks += 1
+            entry.last_clicked = datetime.now(timezone.utc)
+            try:
                 db.session.commit()
+            except:
+                db.session.rollback()
+        # use 301 permanent redirect
         return redirect(long_url, code=301)
 
     return jsonify({"ok": False, "error": "Slug not found"}), 404
 
 @app.route("/api/stats/<slug>")
 def stats(slug):
-    entry = db.session.query(URLMap).filter_by(slug=slug).first()
+    entry = db.session.query(URLMap).filter(
+        db.func.lower(URLMap.slug) == slug.lower()
+    ).first()
     if entry:
-        # merge Redis clicks
-        redis_clicks = int(r.get(f"clicks:{slug}") or 0) if r else 0
         return jsonify({
             "ok": True,
             "slug": entry.slug,
             "url": entry.long_url,
-            "clicks": entry.clicks + redis_clicks,
+            "clicks": entry.clicks,
             "created_at": entry.created_at.isoformat(),
             "last_clicked": entry.last_clicked.isoformat() if entry.last_clicked else None,
             "expires_at": entry.expires_at.isoformat() if entry.expires_at else None,
@@ -288,51 +289,14 @@ def stats(slug):
         }), 200
     return jsonify({"ok": False, "error": "Slug not found"}), 404
 
-# -----------------------------
-# Background Tasks
-# -----------------------------
-def flush_clicks_to_db():
-    """Periodically flush Redis click counters to DB."""
-    while True:
-        if r:
-            try:
-                keys = r.keys("clicks:*")
-                for key in keys:
-                    slug = key.decode().split(":", 1)[1]
-                    count = int(r.get(key) or 0)
-                    if count > 0:
-                        entry = db.session.query(URLMap).filter_by(slug=slug).first()
-                        if entry:
-                            entry.clicks += count
-                            entry.last_clicked = datetime.now(timezone.utc)
-                            db.session.commit()
-                        r.delete(key)
-            except Exception as e:
-                logging.error("Failed to flush clicks: %s", e)
-        time.sleep(60)  # flush every 60s
-
-def daily_backup_thread():
-    """Backup DB daily at 23:59"""
-    while True:
-        now = datetime.now()
-        target = now.replace(hour=23, minute=59, second=0, microsecond=0)
-        if now > target:
-            target += timedelta(days=1)
-        sleep_seconds = (target - now).total_seconds()
-        time.sleep(sleep_seconds)
-        try:
-            push_db_to_github()
-        except Exception as e:
-            logging.error("Failed to push DB backup: %s", e)
-
-# start background threads
-threading.Thread(target=flush_clicks_to_db, daemon=True).start()
-threading.Thread(target=daily_backup_thread, daemon=True).start()
-
-# -----------------------------
-# Backup on shutdown
-# -----------------------------
-atexit.register(push_db_to_github)
+@app.route("/cleanup", methods=["POST"])
+def cleanup():
+    count = URLMap.query.filter(
+        URLMap.expires_at != None,
+        URLMap.expires_at < datetime.now(timezone.utc)
+    ).delete()
+    db.session.commit()
+    return jsonify({"ok": True, "deleted": count, "msg": "Expired URLs removed"}), 200
 
 # -----------------------------
 # Error Handlers
@@ -349,6 +313,29 @@ def ratelimit_handler(e):
 def server_error(e):
     logging.exception("Server error: %s", e)
     return jsonify({"ok": False, "error": "Internal server error"}), 500
+
+# -----------------------------
+# Auto backup thread at 23:59 daily
+# -----------------------------
+def daily_backup_thread():
+    while True:
+        now = datetime.now()
+        target = now.replace(hour=23, minute=59, second=0, microsecond=0)
+        if now > target:
+            target += timedelta(days=1)
+        sleep_seconds = (target - now).total_seconds()
+        time.sleep(sleep_seconds)
+        try:
+            push_db_to_github()
+        except Exception as e:
+            logging.error("Failed to push DB backup: %s", e)
+
+threading.Thread(target=daily_backup_thread, daemon=True).start()
+
+# -----------------------------
+# Backup on shutdown
+# -----------------------------
+atexit.register(push_db_to_github)
 
 # -----------------------------
 # Run App
