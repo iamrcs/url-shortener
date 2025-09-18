@@ -95,10 +95,6 @@ def set_security_headers(response):
     response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['X-Content-Type-Options'] = 'nosniff'
-    # Basic CSP (adjust as required for your site)
-    response.headers['Content-Security-Policy'] = "default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'"
-    response.headers['Referrer-Policy'] = 'no-referrer-when-downgrade'
-    response.headers['Permissions-Policy'] = 'geolocation=()'
     return response
 
 # -----------------------------
