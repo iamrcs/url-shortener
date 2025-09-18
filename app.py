@@ -1,3 +1,4 @@
+# app.py
 import os
 import re
 import string
@@ -16,21 +17,19 @@ import redis
 import atexit
 import threading
 import time
+from werkzeug.utils import safe_join
 
+# Optional: functions to backup/restore DB to Github (your existing module)
 from backup_github import push_db_to_github, restore_db_from_github
 
 # -----------------------------
 # Logging
 # -----------------------------
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger(__name__)
 
 # -----------------------------
-# Restore DB from GitHub on startup
-# -----------------------------
-restore_db_from_github()
-
-# -----------------------------
-# Flask App & Config
+# Config
 # -----------------------------
 class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -40,10 +39,13 @@ class Config:
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,
         "pool_recycle": 280,
-        "pool_size": 10,
-        "max_overflow": 20,
+        "pool_size": int(os.environ.get("DB_POOL_SIZE", 10)),
+        "max_overflow": int(os.environ.get("DB_MAX_OVERFLOW", 20)),
     }
 
+# -----------------------------
+# Flask app
+# -----------------------------
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config.from_object(Config)
 CORS(app)
@@ -56,26 +58,35 @@ app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 db = SQLAlchemy(app)
 
 # -----------------------------
+# Restore DB from GitHub (if available)
+# -----------------------------
+try:
+    restore_db_from_github()
+except Exception as e:
+    logger.warning("restore_db_from_github failed or not configured: %s", e)
+
+# -----------------------------
 # Redis client
 # -----------------------------
 REDIS_URL = app.config.get("REDIS_URL")
 r = None
 if REDIS_URL:
     try:
-        r = redis.from_url(REDIS_URL)
+        r = redis.from_url(REDIS_URL, decode_responses=False)
         r.ping()
-        logging.info("Connected to Redis")
+        logger.info("Connected to Redis")
     except Exception as e:
-        logging.warning("Redis unavailable: %s", e)
+        logger.warning("Redis unavailable: %s", e)
+        r = None
 
 # -----------------------------
-# Rate Limiter
+# Rate limiter
 # -----------------------------
 storage_uri = REDIS_URL if r else "memory://"
 limiter = Limiter(key_func=get_remote_address, storage_uri=storage_uri, app=app)
 
 # -----------------------------
-# Security Headers
+# Security headers
 # -----------------------------
 @app.after_request
 def set_security_headers(response):
@@ -90,7 +101,7 @@ def set_security_headers(response):
 slug_pattern = re.compile(r"^[a-zA-Z0-9_-]{3,50}$")
 
 # -----------------------------
-# Database Model
+# Database model
 # -----------------------------
 class URLMap(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -107,37 +118,45 @@ with app.app_context():
 # -----------------------------
 # Helpers
 # -----------------------------
-def generate_slug(length=6, attempts=20):
+def generate_slug(length=6, attempts=50):
     chars = string.ascii_letters + string.digits
     for _ in range(attempts):
         slug = "".join(random.choices(chars, k=length))
-        if r and r.exists(f"slug:{slug}"):
-            continue
-        if not db.session.query(URLMap.slug).filter(
-            db.func.lower(URLMap.slug) == slug.lower()
-        ).first():
+        # fast redis check
+        if r:
+            try:
+                if r.exists(f"slug:{slug}"):
+                    continue
+            except Exception:
+                pass
+        # db check (case-insensitive)
+        if not db.session.query(URLMap.slug).filter(db.func.lower(URLMap.slug) == slug.lower()).first():
             return slug
     raise Exception("Failed to generate unique slug")
 
 def is_valid_url(url: str) -> bool:
+    if not url or not isinstance(url, str):
+        return False
     try:
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https") or not parsed.netloc:
             return False
 
         hostname = parsed.hostname or ""
+        # disallow direct private ip addresses
         try:
             ip = ipaddress.ip_address(hostname)
             if ip.is_private or ip.is_loopback:
                 return False
         except Exception:
+            # not an ip, OK (domain)
             pass
 
+        # disallow common private host prefixes and localhost
         private_prefixes = (
-            "10.", "192.168.",
-            "172.16.", "172.17.", "172.18.", "172.19.", "172.20.", "172.21.", "172.22.",
-            "172.23.", "172.24.", "172.25.", "172.26.", "172.27.", "172.28.", "172.29.",
-            "172.30.", "172.31."
+            "10.", "192.168.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.",
+            "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.",
+            "172.28.", "172.29.", "172.30.", "172.31."
         )
         if hostname == "localhost" or hostname.startswith(private_prefixes):
             return False
@@ -147,19 +166,67 @@ def is_valid_url(url: str) -> bool:
         return False
 
 def get_existing_by_url(url: str):
-    if r:
-        cached_slug = r.get(f"url:{url}")
-        if cached_slug:
-            return cached_slug.decode()
+    try:
+        if r:
+            cached_slug = r.get(f"url:{url}")
+            if cached_slug:
+                # decode bytes to string if necessary
+                return cached_slug.decode() if isinstance(cached_slug, (bytes, bytearray)) else cached_slug
+    except Exception:
+        pass
+
     entry = db.session.query(URLMap).filter_by(long_url=url).first()
     if entry and r:
-        r.set(f"url:{url}", entry.slug, ex=3600*24*30)
+        try:
+            r.set(f"url:{url}", entry.slug, ex=3600*24*30)
+        except Exception:
+            pass
     return entry.slug if entry else None
 
 def slug_exists(slug: str) -> bool:
-    return db.session.query(URLMap.slug).filter(
-        db.func.lower(URLMap.slug) == slug.lower()
-    ).first() is not None
+    try:
+        if r:
+            if r.exists(f"slug:{slug}"):
+                return True
+    except Exception:
+        pass
+    return db.session.query(URLMap.slug).filter(db.func.lower(URLMap.slug) == slug.lower()).first() is not None
+
+# -----------------------------
+# Serve assets from /assets but accessible at root too
+# -----------------------------
+# We use before_request so it doesn't conflict with other registered endpoints like /api/...
+@app.before_request
+def serve_asset_if_exists():
+    # don't attempt to serve assets for API, static, or admin paths
+    path = request.path.lstrip("/")
+    if not path:
+        return None
+
+    # protect API and known endpoints from being hijacked
+    protected_prefixes = ("api/", "static/", "favicon.ico", ".well-known/")
+    if any(path.startswith(p) for p in protected_prefixes):
+        return None
+
+    # only serve actual files that exist in /assets or /.well-known
+    try:
+        # serve from assets at e.g. /ads.txt when file exists in assets/ads.txt
+        assets_dir = os.path.join(app.root_path, "assets")
+        candidate = safe_join(assets_dir, path)
+        if candidate and os.path.isfile(candidate):
+            return send_from_directory(assets_dir, path)
+
+        # also allow direct /.well-known/<file>
+        wk_dir = os.path.join(app.root_path, ".well-known")
+        candidate_wk = safe_join(wk_dir, path)
+        if candidate_wk and os.path.isfile(candidate_wk):
+            # serve the file (path likely like 'security.txt' or similar)
+            return send_from_directory(wk_dir, path)
+    except Exception:
+        # if safe_join or send_from_directory raises, just continue normal routing
+        return None
+
+    return None
 
 # -----------------------------
 # Routes
@@ -179,6 +246,7 @@ def shorten():
     if not is_valid_url(long_url):
         return jsonify({"ok": False, "error": "Invalid URL"}), 400
 
+    # if no custom slug, return existing shortened if present
     if not custom_slug:
         existing_slug = get_existing_by_url(long_url)
         if existing_slug:
@@ -214,14 +282,19 @@ def shorten():
     except IntegrityError:
         db.session.rollback()
         return jsonify({"ok": False, "error": "Slug already taken"}), 409
+    except Exception as e:
+        db.session.rollback()
+        logger.exception("DB commit failed: %s", e)
+        return jsonify({"ok": False, "error": "Database error"}), 500
 
+    # cache in redis where available
     if r:
         try:
             with r.pipeline() as pipe:
                 pipe.set(f"url:{long_url}", slug, ex=3600*24*30)
                 pipe.set(f"slug:{slug}", long_url, ex=3600*24*30)
                 pipe.execute()
-        except:
+        except Exception:
             pass
 
     return jsonify({
@@ -236,57 +309,93 @@ def shorten():
 def api_shorten():
     return shorten()
 
+# Redirect slug (last catch-all for slugs)
 @app.route("/<slug>")
 def redirect_slug(slug):
+    # Skip obvious static like 'api' or 'static' - but these shouldn't reach here due to other routes
     long_url = None
-    if r:
-        cached = r.get(f"slug:{slug}")
-        if cached:
-            long_url = cached.decode()
-
     entry = None
+
+    # try redis cache first
+    if r:
+        try:
+            cached = r.get(f"slug:{slug}")
+            if cached:
+                long_url = cached.decode() if isinstance(cached, (bytes, bytearray)) else cached
+        except Exception:
+            pass
+
+    # db lookup if not cached
     if not long_url:
-        entry = db.session.query(URLMap).filter(
-            db.func.lower(URLMap.slug) == slug.lower()
-        ).first()
+        entry = db.session.query(URLMap).filter(db.func.lower(URLMap.slug) == slug.lower()).first()
         if entry:
             long_url = entry.long_url
             if r:
-                r.set(f"slug:{slug}", long_url, ex=3600*24*30)
+                try:
+                    r.set(f"slug:{slug}", long_url, ex=3600*24*30)
+                except Exception:
+                    pass
 
+    # check expiry (if entry exists in db)
     if entry and entry.expires_at and entry.expires_at < datetime.now(timezone.utc):
         return jsonify({"ok": False, "error": "Link expired"}), 410
 
     if long_url:
-        if entry:
-            # queue click in Redis
+        # update click counters (prefer redis increment)
+        now_iso = datetime.now(timezone.utc).isoformat()
+        if r:
             try:
-                r.incr(f"clicks:{slug}")
-                r.set(f"lastclick:{slug}", datetime.now(timezone.utc).isoformat())
-            except:
-                entry.clicks += 1
-                entry.last_clicked = datetime.now(timezone.utc)
-                db.session.commit()
+                r.incr(f"clicks:{slug}", amount=1)
+                r.set(f"lastclick:{slug}", now_iso)
+            except Exception:
+                # fallback to DB update if redis fails
+                try:
+                    if entry:
+                        entry.clicks = entry.clicks + 1
+                        entry.last_clicked = datetime.now(timezone.utc)
+                        db.session.commit()
+                except Exception:
+                    db.session.rollback()
+        else:
+            # no redis: update DB directly
+            try:
+                if entry:
+                    entry.clicks = entry.clicks + 1
+                    entry.last_clicked = datetime.now(timezone.utc)
+                    db.session.commit()
+            except Exception:
+                db.session.rollback()
+
         return redirect(long_url, code=301)
 
     return jsonify({"ok": False, "error": "Slug not found"}), 404
 
+# -----------------------------
+# API: Stats
+# -----------------------------
 @app.route("/api/stats/<slug>")
 def stats(slug):
-    entry = db.session.query(URLMap).filter(
-        db.func.lower(URLMap.slug) == slug.lower()
-    ).first()
+    entry = db.session.query(URLMap).filter(db.func.lower(URLMap.slug) == slug.lower()).first()
     if entry:
-        clicks = entry.clicks
+        clicks = entry.clicks or 0
         last_clicked = entry.last_clicked
 
         if r:
-            rc = r.get(f"clicks:{slug}")
-            if rc:
-                clicks += int(rc)
-            rl = r.get(f"lastclick:{slug}")
-            if rl:
-                last_clicked = datetime.fromisoformat(rl.decode())
+            try:
+                rc = r.get(f"clicks:{slug}")
+                if rc:
+                    rc_val = int(rc.decode() if isinstance(rc, (bytes, bytearray)) else rc)
+                    clicks += rc_val
+            except Exception:
+                pass
+
+            try:
+                rl = r.get(f"lastclick:{slug}")
+                if rl:
+                    rl_decoded = rl.decode() if isinstance(rl, (bytes, bytearray)) else rl
+                    last_clicked = datetime.fromisoformat(rl_decoded)
+            except Exception:
+                pass
 
         return jsonify({
             "ok": True,
@@ -298,36 +407,28 @@ def stats(slug):
             "expires_at": entry.expires_at.isoformat() if entry.expires_at else None,
             "short_url": request.host_url + entry.slug
         }), 200
+
     return jsonify({"ok": False, "error": "Slug not found"}), 404
 
+# -----------------------------
+# Cleanup expired links
+# -----------------------------
 @app.route("/cleanup", methods=["POST"])
 def cleanup():
-    count = URLMap.query.filter(
-        URLMap.expires_at != None,
-        URLMap.expires_at < datetime.now(timezone.utc)
-    ).delete()
-    db.session.commit()
-    return jsonify({"ok": True, "deleted": count, "msg": "Expired URLs removed"}), 200
+    try:
+        count = URLMap.query.filter(
+            URLMap.expires_at != None,
+            URLMap.expires_at < datetime.now(timezone.utc)
+        ).delete()
+        db.session.commit()
+        return jsonify({"ok": True, "deleted": count, "msg": "Expired URLs removed"}), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.exception("Cleanup failed: %s", e)
+        return jsonify({"ok": False, "error": "Cleanup failed"}), 500
 
 # -----------------------------
-# Static File Routes
-# -----------------------------
-@app.route('/<path:filename>')
-def serve_assets(filename):
-    asset_path = os.path.join(app.root_path, 'assets')
-    if os.path.isfile(os.path.join(asset_path, filename)):
-        return send_from_directory(asset_path, filename)
-    return jsonify({"ok": False, "error": "File not found"}), 404
-
-@app.route('/.well-known/<path:filename>')
-def serve_well_known(filename):
-    wk_path = os.path.join(app.root_path, '.well-known')
-    if os.path.isfile(os.path.join(wk_path, filename)):
-        return send_from_directory(wk_path, filename)
-    return jsonify({"ok": False, "error": "File not found"}), 404
-
-# -----------------------------
-# Error Handlers
+# Error handlers
 # -----------------------------
 @app.errorhandler(404)
 def not_found(e):
@@ -339,38 +440,53 @@ def ratelimit_handler(e):
 
 @app.errorhandler(500)
 def server_error(e):
-    logging.exception("Server error: %s", e)
+    logger.exception("Server error: %s", e)
     return jsonify({"ok": False, "error": "Internal server error"}), 500
 
 # -----------------------------
-# Flush Redis click counts to DB
+# Flush Redis click counts to DB (safe)
 # -----------------------------
-def flush_clicks():
+def flush_clicks_loop():
     while True:
         time.sleep(60)
         if not r:
             continue
         try:
-            keys = r.keys("clicks:*")
-            for key in keys:
-                slug = key.decode().split(":", 1)[1]
-                count = int(r.get(key) or 0)
-                if count > 0:
-                    entry = URLMap.query.filter_by(slug=slug).first()
-                    if entry:
-                        entry.clicks += count
-                        last = r.get(f"lastclick:{slug}")
-                        if last:
-                            entry.last_clicked = datetime.fromisoformat(last.decode())
-                        db.session.commit()
-                    r.delete(key)
+            # use scan_iter to avoid blocking on many keys
+            for key in r.scan_iter(match="clicks:*"):
+                try:
+                    key_str = key.decode() if isinstance(key, (bytes, bytearray)) else key
+                    slug = key_str.split(":", 1)[1]
+                    count_raw = r.get(key)
+                    count = int(count_raw.decode() if isinstance(count_raw, (bytes, bytearray)) else (count_raw or 0))
+                    if count > 0:
+                        entry = db.session.query(URLMap).filter_by(slug=slug).first()
+                        if entry:
+                            entry.clicks = (entry.clicks or 0) + count
+                            last_raw = r.get(f"lastclick:{slug}")
+                            if last_raw:
+                                try:
+                                    last_iso = last_raw.decode() if isinstance(last_raw, (bytes, bytearray)) else last_raw
+                                    entry.last_clicked = datetime.fromisoformat(last_iso)
+                                except Exception:
+                                    pass
+                            db.session.commit()
+                        # remove the redis count after flushing
+                        try:
+                            r.delete(key)
+                        except Exception:
+                            pass
+                except Exception:
+                    # keep going with other keys
+                    continue
         except Exception as e:
-            logging.error("Flush clicks failed: %s", e)
+            logger.exception("Flush clicks failed: %s", e)
 
-threading.Thread(target=flush_clicks, daemon=True).start()
+t = threading.Thread(target=flush_clicks_loop, daemon=True)
+t.start()
 
 # -----------------------------
-# Auto backup thread at 23:59 daily
+# Daily backup thread
 # -----------------------------
 def daily_backup_thread():
     while True:
@@ -378,22 +494,29 @@ def daily_backup_thread():
         target = now.replace(hour=23, minute=59, second=0, microsecond=0)
         if now > target:
             target += timedelta(days=1)
-        sleep_seconds = (target - now).total_seconds()
+        sleep_seconds = max(1, (target - now).total_seconds())
         time.sleep(sleep_seconds)
         try:
             push_db_to_github()
         except Exception as e:
-            logging.error("Failed to push DB backup: %s", e)
+            logger.exception("Failed to push DB backup: %s", e)
 
-threading.Thread(target=daily_backup_thread, daemon=True).start()
+try:
+    thread_backup = threading.Thread(target=daily_backup_thread, daemon=True)
+    thread_backup.start()
+except Exception as e:
+    logger.warning("Could not start backup thread: %s", e)
 
 # -----------------------------
-# Backup on shutdown
+# Backup on shutdown (best-effort)
 # -----------------------------
-atexit.register(push_db_to_github)
+try:
+    atexit.register(push_db_to_github)
+except Exception:
+    pass
 
 # -----------------------------
-# Run App
+# Run app
 # -----------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
