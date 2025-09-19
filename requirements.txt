@@ -1,6 +1,7 @@
 flask
 flask-cors
 flask-sqlalchemy
+sqlalchemy
 flask-limiter
 flask-caching
 flask-wtf
