@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """
-Full Flask URL shortener app (app.py)
+Full Flask URL shortener app (improved)
 
-- Redis optional (fast click batching + cache)
-- Click batching worker flushes to DB safely using app.app_context()
-- Custom-slug duplicate message: "Direct slug already exists" (consistent)
-- SQLite/Postgres via SQLAlchemy
-- Rate limiting via flask-limiter (uses Redis if configured)
-- Optional GitHub backup helpers (keep them guarded)
+Key changes since prior version:
+- Redis uses decode_responses=True for string I/O (simpler code)
+- Normalizes incoming URLs with idna host encoding and strips fragments
+- long_url column set unique=True (DB-level enforcement) — see TODO for migrations
+- Background threads (click flush, backup) start only when running directly (avoid multiple threads under Gunicorn)
+- Adds basic Content-Security-Policy header
+- Ensures db.session.remove() is called in background worker loops to avoid scoped-session leaks
+- Improved logging & comments
 """
-
 import os
 import re
 import string
@@ -20,7 +21,7 @@ import logging
 import threading
 import time
 import atexit
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict
 
@@ -76,7 +77,7 @@ class Config:
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config.from_object(Config)
 
-# Consider restricting CORS in production
+# Consider restricting CORS in production to specific origins
 CORS(app)
 
 # Adjust DATABASE_URL for SQLAlchemy if needed (Heroku style)
@@ -88,15 +89,15 @@ app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 db = SQLAlchemy(app)
 
 # -----------------------------
-# Redis client init (optional)
+# Redis client init (optional) - decode_responses=True to simplify code
 # -----------------------------
 r = None
 REDIS_URL = app.config.get("REDIS_URL")
 if REDIS_URL:
     try:
         import redis as redislib
-        # keep bytes for predictable behavior; decode explicitly where needed
-        r = redislib.from_url(REDIS_URL, decode_responses=False)
+        # decode_responses=True -> get/set/hget/hgetall return strings
+        r = redislib.from_url(REDIS_URL, decode_responses=True)
         r.ping()
         logger.info("Connected to Redis at %s", REDIS_URL)
     except Exception as e:
@@ -117,7 +118,8 @@ def set_security_headers(response):
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
-    # Consider adding Content-Security-Policy in future
+    # Basic CSP - adjust to your static hosting needs if you serve external assets
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
     return response
 
 # -----------------------------
@@ -132,7 +134,9 @@ class URLMap(db.Model):
     __tablename__ = "url_map"
     id = db.Column(db.Integer, primary_key=True)
     slug = db.Column(db.String(50), unique=True, index=True, nullable=False)
-    long_url = db.Column(db.Text, nullable=False, index=True)
+    # TODO: unique=True enforces DB-level one-shortcode-per-long-url.
+    # If you already have duplicates, run a migration or remove duplicates first.
+    long_url = db.Column(db.Text, unique=True, nullable=False, index=True)
     clicks = db.Column(db.Integer, default=0, nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     last_clicked = db.Column(db.DateTime, nullable=True)
@@ -147,6 +151,42 @@ def normalize_slug(s: Optional[str]) -> str:
     if not s:
         return ""
     return s.strip().lower()
+
+def normalize_url(url: str, allow_fix_scheme: bool = True) -> str:
+    """
+    Normalize the provided URL:
+      - add https scheme if missing (when allow_fix_scheme)
+      - remove fragments
+      - IDNA-encode hostname (so unicode hostnames are stored consistently)
+      - strip trailing whitespace
+    Returns normalized URL string or empty string if invalid.
+    """
+    if not url:
+        return ""
+    url = url.strip()
+    if allow_fix_scheme and "://" not in url:
+        url = "https://" + url
+    try:
+        parsed = urlparse(url)
+        scheme = parsed.scheme.lower()
+        if scheme not in ("http", "https"):
+            return ""
+        hostname = parsed.hostname or ""
+        # IDNA encode hostname to punycode (handles international domains)
+        try:
+            hostname_idna = hostname.encode("idna").decode("ascii")
+        except Exception:
+            hostname_idna = hostname
+        # Rebuild netloc with potential username:password (rare) and port
+        netloc = hostname_idna
+        if parsed.port:
+            netloc = f"{netloc}:{parsed.port}"
+        # Reconstruct URL without fragment
+        new_parsed = (scheme, netloc, parsed.path or "/", parsed.params or "", parsed.query or "", "")
+        normalized = urlunparse(new_parsed)
+        return normalized
+    except Exception:
+        return ""
 
 def generate_slug(length=6, attempts=50) -> str:
     """Generate a unique slug using secrets (cryptographically strong RNG)."""
@@ -178,57 +218,57 @@ def _slug_last_clicked_hash() -> str:
     return f"{app.config['CLICK_KEY_PREFIX']}:last_clicked"
 
 def is_valid_url(url: str, allow_fix_scheme: bool = True) -> bool:
-    if not url:
+    """Lightweight validation: scheme, netloc and reject common private ranges and localhost."""
+    normalized = normalize_url(url, allow_fix_scheme=allow_fix_scheme)
+    if not normalized:
         return False
-    url = url.strip()
-    if len(url) > 4096:
-        return False
-    if allow_fix_scheme and "://" not in url:
-        url = "https://" + url
     try:
-        parsed = urlparse(url)
-        if parsed.scheme not in ("http", "https") or not parsed.netloc:
-            return False
+        parsed = urlparse(normalized)
         hostname = (parsed.hostname or "").strip().lower()
-        try:
-            import ipaddress as _ip
-            ip = _ip.ip_address(hostname)
-            # reject private/loopback IPs
-            if ip.is_private or ip.is_loopback:
-                return False
-        except Exception:
-            # hostname might not be an IP, that's fine
-            pass
-        # reject localhost and common private ranges
+        if not hostname:
+            return False
+        # Reject localhost and private ranges
         if hostname == "localhost":
             return False
         private_prefixes = ("10.", "192.168.",) + tuple(f"172.{i}." for i in range(16, 32))
         if any(hostname.startswith(p) for p in private_prefixes):
             return False
+        # attempt to detect ip addresses to reject private/loopback
+        try:
+            import ipaddress as _ip
+            ip = _ip.ip_address(hostname)
+            if ip.is_private or ip.is_loopback:
+                return False
+        except Exception:
+            pass
         return True
     except Exception:
         return False
 
 def get_existing_by_url(url: str) -> Optional[str]:
+    """Return existing slug for long URL (cache-aware)."""
     if not url:
         return None
-    url_key = _long_url_hash_key(url)
+    url_norm = normalize_url(url)
+    if not url_norm:
+        return None
+    url_key = _long_url_hash_key(url_norm)
     if r:
         try:
             cached = r.get(url_key)
             if cached:
-                return cached.decode() if isinstance(cached, bytes) else cached
+                return cached  # already a string
         except Exception:
-            logger.debug("Redis get error for url:%s", url, exc_info=True)
+            logger.debug("Redis get error for url:%s", url_norm, exc_info=True)
     try:
-        row = db.session.query(URLMap.slug).filter_by(long_url=url).first()
+        row = db.session.query(URLMap.slug).filter_by(long_url=url_norm).first()
         if row:
             slug = row[0]
             if r:
                 try:
                     pipe = r.pipeline()
                     pipe.setex(url_key, 3600 * 24 * 30, slug)
-                    pipe.setex(f"{app.config['CLICK_KEY_PREFIX']}:slug:{slug}", 3600 * 24 * 30, url)
+                    pipe.setex(f"{app.config['CLICK_KEY_PREFIX']}:slug:{slug}", 3600 * 24 * 30, url_norm)
                     pipe.execute()
                 except Exception:
                     logger.debug("Redis pipeline set error", exc_info=True)
@@ -286,8 +326,8 @@ def shorten():
     long_url_raw = (data.get("url") or "").strip()
     custom_slug = normalize_slug(data.get("slug") or "")
 
-    long_url = long_url_raw if "://" in long_url_raw else ("https://" + long_url_raw if long_url_raw else "")
-
+    # Normalize URL properly
+    long_url = normalize_url(long_url_raw)
     if not is_valid_url(long_url):
         return jsonify({"ok": False, "error": "Invalid URL"}), 400
 
@@ -366,7 +406,7 @@ def redirect_slug(slug):
         try:
             cached = r.get(f"{app.config['CLICK_KEY_PREFIX']}:slug:{slug_l}")
             if cached:
-                long_url = cached.decode() if isinstance(cached, bytes) else cached
+                long_url = cached
         except Exception:
             logger.debug("Redis get error in redirect", exc_info=True)
 
@@ -449,10 +489,10 @@ def stats(slug):
         try:
             pending = r.hget(_slug_clicks_hash(), slug_l)
             if pending:
-                clicks_pending = int(pending.decode() if isinstance(pending, bytes) else pending)
+                clicks_pending = int(pending)
             last_ts = r.hget(_slug_last_clicked_hash(), slug_l)
             if last_ts:
-                last_clicked_pending = datetime.fromtimestamp(int(last_ts.decode() if isinstance(last_ts, bytes) else last_ts), tz=timezone.utc)
+                last_clicked_pending = datetime.fromtimestamp(int(last_ts), tz=timezone.utc)
         except Exception:
             logger.debug("Redis stats read failed", exc_info=True)
 
@@ -499,7 +539,7 @@ def flush_pending_clicks_once(batch_max: int = 500):
     try:
         # If there are pending entries, move them to a processing key to avoid races
         if r.exists(pending_hash):
-            # rename will fail if processing_hash exists; unique processing_hash avoids that
+            # rename is atomic; processing_hash is unique via uuid so it won't overwrite
             r.rename(pending_hash, processing_hash)
         else:
             return
@@ -513,16 +553,15 @@ def flush_pending_clicks_once(batch_max: int = 500):
 
         slug_counts: Dict[str, int] = {}
         for k, v in items:
-            slug = k.decode() if isinstance(k, bytes) else k
-            cnt = int(v.decode() if isinstance(v, bytes) else v)
+            # with decode_responses=True k and v are strings already
+            slug = k
+            cnt = int(v)
             slug_counts[slug] = cnt
 
         # If we processed only a subset, remove processed fields from the processing hash,
-        # leaving the remainder for the next run (we used an ephemeral processing key to
-        # avoid races with writers).
+        # leaving the remainder for the next run
         if len(items) < len(pending_map):
             try:
-                # delete only the keys we processed
                 r.hdel(processing_hash, *[k for k, _ in items])
             except Exception:
                 logger.debug("Failed hdel some fields from processing_hash", exc_info=True)
@@ -551,7 +590,6 @@ def flush_pending_clicks_once(batch_max: int = 500):
                     logger.exception("Failed to commit flushed clicks")
             finally:
                 try:
-                    # remove/close the scoped session to avoid leaks in long-running thread
                     db.session.remove()
                 except Exception:
                     logger.debug("db.session.remove() failed", exc_info=True)
@@ -562,10 +600,8 @@ def flush_pending_clicks_once(batch_max: int = 500):
         try:
             if r.exists(processing_hash):
                 try:
-                    # renamenx to avoid clobbering any new pending hash
                     r.renamenx(processing_hash, pending_hash)
                 except Exception:
-                    # if renamenx not available or fails, ignore (we don't want to raise here)
                     pass
         except Exception:
             logger.debug("Failed processing_hash cleanup", exc_info=True)
@@ -585,11 +621,6 @@ def clicks_flush_worker():
         except Exception:
             logger.exception("Unexpected error in clicks_flush_worker; sleeping briefly and retrying")
             time.sleep(5)
-
-# Start clicks flush worker if Redis available
-if r:
-    t_clicks = threading.Thread(target=clicks_flush_worker, daemon=True)
-    t_clicks.start()
 
 # -----------------------------
 # Backup thread (daily) - uses push_db_to_github if available
@@ -620,24 +651,38 @@ def daily_backup_thread():
             logger.exception("Unexpected error in daily_backup_thread; retrying in 60s")
             time.sleep(60)
 
-if push_db_to_github:
-    t_backup = threading.Thread(target=daily_backup_thread, daemon=True)
-    t_backup.start()
-
-if push_db_to_github:
-    def _atexit_push():
-        try:
-            logger.info("Running push_db_to_github on shutdown...")
-            push_db_to_github()
-            logger.info("Shutdown backup done.")
-        except Exception:
-            logger.exception("Shutdown backup failed.")
-    atexit.register(_atexit_push)
+# -----------------------------
+# Background workers startup helper
+# -----------------------------
+def start_background_workers():
+    """Start background threads for click flushing and optional backup.
+    Only call this when you are certain you want threads started in this process
+    (e.g. when running the builtin Flask dev server).
+    Avoid calling when running under Gunicorn/uwsgi with multiple workers.
+    """
+    if r:
+        t_clicks = threading.Thread(target=clicks_flush_worker, daemon=True)
+        t_clicks.start()
+        logger.info("Started clicks flush worker thread.")
+    if push_db_to_github:
+        t_backup = threading.Thread(target=daily_backup_thread, daemon=True)
+        t_backup.start()
+        logger.info("Started daily backup thread.")
+        def _atexit_push():
+            try:
+                logger.info("Running push_db_to_github on shutdown...")
+                push_db_to_github()
+                logger.info("Shutdown backup done.")
+            except Exception:
+                logger.exception("Shutdown backup failed.")
+        atexit.register(_atexit_push)
 
 # -----------------------------
 # Run App
 # -----------------------------
 if __name__ == "__main__":
+    # Start background workers only when running directly (avoid multiple threads under Gunicorn)
+    start_background_workers()
     port = int(os.environ.get("PORT", 5000))
-    # For production use gunicorn/uwsgi; the builtin server is fine for dev
+    # For production use gunicorn/uwsgi and keep threads managed externally
     app.run(host="0.0.0.0", port=port, threaded=True)
