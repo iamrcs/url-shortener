@@ -115,11 +115,11 @@ limiter = Limiter(key_func=get_remote_address, storage_uri=storage_uri, app=app)
 # -----------------------------
 @app.after_request
 def set_security_headers(response):
+    response.headers["Content-Type"] = "text/html; charset=utf-8"
+    response.headers["Server"] = "It Is Unique Official"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
-    # Basic CSP - adjust to your static hosting needs if you serve external assets
-    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
     return response
 
 # -----------------------------
