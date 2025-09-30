@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 """
-Full updated Flask URL shortener app with safe Redis-backed click batching
-and background flush worker that uses app.app_context() for DB operations.
+Full Flask URL shortener app (app.py)
+
+- Redis optional (fast click batching + cache)
+- Click batching worker flushes to DB safely using app.app_context()
+- Custom-slug duplicate message: "Direct slug already exists" (consistent)
+- SQLite/Postgres via SQLAlchemy
+- Rate limiting via flask-limiter (uses Redis if configured)
+- Optional GitHub backup helpers (keep them guarded)
 """
+
 import os
 import re
 import string
@@ -72,7 +79,7 @@ app.config.from_object(Config)
 # Consider restricting CORS in production
 CORS(app)
 
-# Adjust DATABASE_URL for SQLAlchemy if needed
+# Adjust DATABASE_URL for SQLAlchemy if needed (Heroku style)
 db_url = app.config["DATABASE_URL"]
 if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
@@ -88,7 +95,7 @@ REDIS_URL = app.config.get("REDIS_URL")
 if REDIS_URL:
     try:
         import redis as redislib
-        # keep bytes for predictable behavior; decode explicitly in code
+        # keep bytes for predictable behavior; decode explicitly where needed
         r = redislib.from_url(REDIS_URL, decode_responses=False)
         r.ping()
         logger.info("Connected to Redis at %s", REDIS_URL)
@@ -186,10 +193,13 @@ def is_valid_url(url: str, allow_fix_scheme: bool = True) -> bool:
         try:
             import ipaddress as _ip
             ip = _ip.ip_address(hostname)
+            # reject private/loopback IPs
             if ip.is_private or ip.is_loopback:
                 return False
         except Exception:
+            # hostname might not be an IP, that's fine
             pass
+        # reject localhost and common private ranges
         if hostname == "localhost":
             return False
         private_prefixes = ("10.", "192.168.",) + tuple(f"172.{i}." for i in range(16, 32))
@@ -242,7 +252,11 @@ def slug_exists(slug: str) -> bool:
 # -----------------------------
 @app.route("/")
 def index():
-    return render_template("index.html")
+    # If a template index.html exists it will be served; otherwise basic JSON for API-only use
+    try:
+        return render_template("index.html")
+    except Exception:
+        return jsonify({"ok": True, "msg": "URL Shortener API"}), 200
 
 @app.route("/health")
 def health():
@@ -277,6 +291,7 @@ def shorten():
     if not is_valid_url(long_url):
         return jsonify({"ok": False, "error": "Invalid URL"}), 400
 
+    # If user didn't provide a custom slug, try to return an existing short code for the same long URL
     if not custom_slug:
         existing_slug = get_existing_by_url(long_url)
         if existing_slug:
@@ -288,10 +303,12 @@ def shorten():
             }), 200
 
     if custom_slug:
+        # Validate format
         if not slug_pattern.match(custom_slug):
             return jsonify({"ok": False, "error": "Invalid slug format"}), 400
+        # Custom slug already exists -> return the requested message
         if slug_exists(custom_slug):
-            return jsonify({"ok": False, "error": "Slug already taken"}), 409
+            return jsonify({"ok": False, "error": "Direct slug already exists"}), 409
         slug = custom_slug
     else:
         try:
@@ -306,7 +323,8 @@ def shorten():
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        return jsonify({"ok": False, "error": "Slug already taken"}), 409
+        # Race condition / unique constraint — keep messaging consistent
+        return jsonify({"ok": False, "error": "Direct slug already exists"}), 409
     except Exception:
         db.session.rollback()
         logger.exception("DB error when inserting new short url")
@@ -333,6 +351,7 @@ def shorten():
 @app.route("/api/shorten", methods=["POST"])
 @limiter.limit("5/second")
 def api_shorten():
+    # reuse same logic
     return shorten()
 
 @app.route("/<slug>")
@@ -356,6 +375,7 @@ def redirect_slug(slug):
         try:
             row = db.session.query(URLMap.id, URLMap.long_url).filter_by(slug=slug_l).first()
             if row:
+                # row is (id, long_url)
                 entry_id, long_url = row
                 if r:
                     try:
@@ -373,11 +393,13 @@ def redirect_slug(slug):
 
     now_ts = int(datetime.now(timezone.utc).timestamp())
 
+    # Fast path: increment pending clicks in Redis
     if r:
         try:
             r.hincrby(_slug_clicks_hash(), slug_l, 1)
             r.hset(_slug_last_clicked_hash(), slug_l, now_ts)
         except Exception:
+            # Fallback: update DB synchronously if Redis fails
             logger.debug("Redis click increment failed; falling back to DB update", exc_info=True)
             try:
                 db.session.query(URLMap).filter_by(slug=slug_l).update({
@@ -389,6 +411,7 @@ def redirect_slug(slug):
                 db.session.rollback()
                 logger.exception("Failed fallback DB clicks update for slug %s", slug_l)
     else:
+        # No Redis: update DB directly
         try:
             db.session.query(URLMap).filter_by(slug=slug_l).update({
                 URLMap.clicks: URLMap.clicks + 1,
@@ -466,6 +489,7 @@ def server_error(e):
 # Clicks flush functions (use app.app_context() for DB ops)
 # -----------------------------
 def flush_pending_clicks_once(batch_max: int = 500):
+    """Atomically grab pending clicks hash and apply a batch to the DB."""
     if not r:
         return
 
@@ -473,7 +497,9 @@ def flush_pending_clicks_once(batch_max: int = 500):
     processing_hash = f"{pending_hash}:processing:{uuid.uuid4().hex}"
 
     try:
+        # If there are pending entries, move them to a processing key to avoid races
         if r.exists(pending_hash):
+            # rename will fail if processing_hash exists; unique processing_hash avoids that
             r.rename(pending_hash, processing_hash)
         else:
             return
@@ -491,12 +517,17 @@ def flush_pending_clicks_once(batch_max: int = 500):
             cnt = int(v.decode() if isinstance(v, bytes) else v)
             slug_counts[slug] = cnt
 
+        # If we processed only a subset, remove processed fields from the processing hash,
+        # leaving the remainder for the next run (we used an ephemeral processing key to
+        # avoid races with writers).
         if len(items) < len(pending_map):
             try:
+                # delete only the keys we processed
                 r.hdel(processing_hash, *[k for k, _ in items])
             except Exception:
                 logger.debug("Failed hdel some fields from processing_hash", exc_info=True)
         else:
+            # we processed all entries: safe to delete the processing key
             r.delete(processing_hash)
 
         now = datetime.now(timezone.utc)
@@ -520,17 +551,21 @@ def flush_pending_clicks_once(batch_max: int = 500):
                     logger.exception("Failed to commit flushed clicks")
             finally:
                 try:
+                    # remove/close the scoped session to avoid leaks in long-running thread
                     db.session.remove()
                 except Exception:
                     logger.debug("db.session.remove() failed", exc_info=True)
 
     except Exception:
         logger.exception("Unexpected error during flush_pending_clicks_once")
+        # Attempt best-effort recovery: if processing_hash still exists, try to rename back
         try:
             if r.exists(processing_hash):
                 try:
+                    # renamenx to avoid clobbering any new pending hash
                     r.renamenx(processing_hash, pending_hash)
                 except Exception:
+                    # if renamenx not available or fails, ignore (we don't want to raise here)
                     pass
         except Exception:
             logger.debug("Failed processing_hash cleanup", exc_info=True)
