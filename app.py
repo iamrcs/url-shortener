@@ -348,7 +348,7 @@ def shorten():
             return jsonify({"ok": False, "error": "Invalid slug format"}), 400
         # Custom slug already exists -> return the requested message
         if slug_exists(custom_slug):
-            return jsonify({"ok": False, "error": "Direct slug already exists"}), 409
+            return jsonify({"ok": False, "error": "The slug you entered has already been taken."}), 409
         slug = custom_slug
     else:
         try:
